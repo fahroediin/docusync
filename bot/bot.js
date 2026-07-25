@@ -423,10 +423,10 @@ client.on('message', async (message) => {
     try {
         console.log(`[${CLIENT_ID}] Incoming message from ${message.from}: "${(message.body || '').substring(0, 40)}" (hasMedia: ${message.hasMedia})`);
 
-        // Skip historical messages before bot was ready
+        // Skip historical messages before bot was ready (5-minute buffer for clock skew)
         const msgTimestamp = (message.timestamp || 0) * 1000;
-        if (botReadyTimestamp > 0 && msgTimestamp < botReadyTimestamp - 60000) {
-            console.log(`[${CLIENT_ID}] Ignored historical message (timestamp: ${msgTimestamp}, botReady: ${botReadyTimestamp})`);
+        if (botReadyTimestamp > 0 && msgTimestamp < (botReadyTimestamp - 300000)) {
+            console.log(`[${CLIENT_ID}] Ignored historical message (msgTime: ${new Date(msgTimestamp).toISOString()}, botReady: ${new Date(botReadyTimestamp).toISOString()})`);
             return;
         }
 
