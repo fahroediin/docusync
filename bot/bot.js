@@ -285,19 +285,6 @@ class MediaQueue {
         const items = [...batch.messages];
         this.senderBatches.delete(senderKey);
 
-        const count = items.length;
-        const sampleMessage = items[0].message;
-
-        try {
-            if (count === 1) {
-                await sampleMessage.reply(`Dokumen diterima, sedang diproses ke Google Drive...`);
-            } else {
-                await sampleMessage.reply(`${count} dokumen diterima, sedang diproses ke Google Drive...`);
-            }
-        } catch (err) {
-            console.error(`[Queue] Gagal kirim notifikasi batch ke ${senderKey}:`, err.message);
-        }
-
         for (let i = 0; i < items.length; i++) {
             this.queue.push({
                 ...items[i],
