@@ -75,12 +75,15 @@ async def download_and_decrypt_wa_media(
     logger.info(f"Downloading encrypted WhatsApp media from CDN: {download_url[:80]}...")
 
     headers = {
-        "User-Agent": "Mozilla/5.0",
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Accept": "*/*",
+        "Accept-Encoding": "gzip, deflate, br",
         "Origin": "https://web.whatsapp.com",
         "Referer": "https://web.whatsapp.com/"
     }
 
-    async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
+    transport = httpx.AsyncHTTPTransport(retries=2)
+    async with httpx.AsyncClient(timeout=15.0, follow_redirects=True, transport=transport) as client:
         response = await client.get(download_url, headers=headers)
         if response.status_code != 200:
             raise RuntimeError(f"Gagal download media dari CDN WhatsApp (HTTP {response.status_code})")
