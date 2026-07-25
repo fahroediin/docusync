@@ -1,0 +1,47 @@
+# Byte-compiled / optimized / DLL files (Python)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Python Environments
+.venv/
+venv/
+ENV/
+env/
+
+# Node.js & Dependencies
+node_modules/
+bot/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# WhatsApp Client Sessions & Temp Downloads
+.wwebjs_auth/
+.wwebjs_cache/
+bot/.wwebjs_auth/
+bot/.wwebjs_cache/
+bot/temp_downloads/
+bot/whatsapp_session/
+
+# Application Credentials & Environment
+.env
+credentials.json
+token.json
+oauth_client.json
+*.json.secret
+
+# SQLite Databases & Local Storage
+storage/*.db
+storage/*.db-journal
+storage/temp/*
+!storage/temp/.gitkeep
+
+# IDEs & System Files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
