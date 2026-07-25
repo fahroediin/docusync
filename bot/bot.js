@@ -104,6 +104,7 @@ const client = new Client({
             '--disable-background-timer-throttling',
             '--disable-backgrounding-occluded-windows',
             '--disable-renderer-backgrounding',
+            '--js-flags=--max-old-space-size=256',
             '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
         ]
     }
@@ -215,16 +216,23 @@ async function isSenderAdmin(message) {
 }
 
 async function checkDocuSyncServer() {
-    try {
-        const res = await axios.get(DOCUSYNC_HEALTH_URL, { timeout: 5000 });
-        if (res.data && res.data.status === 'online') {
-            console.log(`[${CLIENT_ID}] DocuSync API Engine ONLINE (${DOCUSYNC_BASE_URL})`);
-            return res.data;
+    let lastErr = '';
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+            const res = await axios.get(DOCUSYNC_HEALTH_URL, { timeout: 5000 });
+            if (res.data && res.data.status === 'online') {
+                console.log(`[${CLIENT_ID}] DocuSync API Engine ONLINE (${DOCUSYNC_BASE_URL})`);
+                return res.data;
+            }
+        } catch (err) {
+            lastErr = err.message || String(err);
+            if (attempt < 3) {
+                await new Promise(r => setTimeout(r, 1000));
+            }
         }
-    } catch (_) {
-        console.log(`[${CLIENT_ID}] DocuSync API Engine OFFLINE — jalankan: uvicorn app.main:app --reload --port 8000`);
-        return null;
     }
+    console.log(`[${CLIENT_ID}] DocuSync API Engine OFFLINE (${lastErr}) — Target: ${DOCUSYNC_HEALTH_URL}`);
+    return null;
 }
 
 /**
