@@ -75,7 +75,6 @@ const client = new Client({
             '--disable-dev-shm-usage',
             '--disable-accelerated-2d-canvas',
             '--no-first-run',
-            '--single-process',
             '--disable-gpu',
             '--disable-infobars',
             '--window-position=0,0',
