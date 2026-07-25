@@ -67,35 +67,28 @@ if (!fs.existsSync(TEMP_DIR)) {
 // ─────────────────────────────────────────────────────────────
 const client = new Client({
     authStrategy: new LocalAuth({ clientId: CLIENT_ID }),
-    webVersionCache: { type: 'none' },
     puppeteer: {
         headless: true,
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
-            '--disable-gpu',
-            '--disable-software-rasterizer',
-            '--disable-extensions',
-            '--disable-component-extensions-with-background-pages',
-            '--disable-default-apps',
-            '--mute-audio',
-            '--no-default-browser-check',
+            '--disable-accelerated-2d-canvas',
             '--no-first-run',
-            '--disable-background-networking',
-            '--disable-background-timer-throttling',
-            '--disable-backgrounding-occluded-windows',
-            '--disable-breakpad',
-            '--disable-client-side-phishing-detection',
-            '--disable-ipc-flooding-protection',
-            '--disable-notifications',
-            '--disable-popup-blocking',
-            '--disable-print-preview',
-            '--disable-speech-api',
-            '--disable-sync',
-            '--js-flags=--max-old-space-size=128'
+            '--single-process',
+            '--disable-gpu',
+            '--disable-infobars',
+            '--window-position=0,0',
+            '--window-size=1366,768',
+            '--ignore-certificate-errors',
+            '--ignore-ssl-errors',
+            '--ignore-certificate-errors-spki-list'
         ],
+        timeout: 60000,
+        slowMo: 0
     },
+    takeoverOnConflict: true,
+    takeoverTimeoutMs: 0
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -421,9 +414,15 @@ client.on('message', async (message) => {
         const lowerBody = body.toLowerCase();
         const isGroup = message.from.endsWith('@g.us');
 
+        // Fast early exit: Ignore general chat chatter if message is not a command (!), not a document attachment, and not a link
+        const isCommand = lowerBody.startsWith('!');
+        const isDocLink = body.includes('http://') || body.includes('https://');
+        if (!isCommand && !message.hasMedia && !isDocLink) {
+            return;
+        }
+
         // Group filtering check
         if (isGroup && !ALLOW_ALL_GROUPS) {
-            const isCommand = lowerBody.startsWith('!');
             if (!isCommand && ALLOWED_GROUP_IDS.length > 0 && !ALLOWED_GROUP_IDS.includes(message.from)) {
                 return;
             }
