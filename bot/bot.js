@@ -86,6 +86,7 @@ const client = new Client({
     authStrategy: new LocalAuth({ clientId: CLIENT_ID }),
     puppeteer: {
         headless: true,
+        protocolTimeout: 300000,
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -138,11 +139,11 @@ function formatUploaderName(str) {
 
 async function sendReply(message, text) {
     try {
-        await client.sendMessage(message.from, text);
+        await message.reply(text);
         return;
     } catch (_) {}
     try {
-        await message.reply(text);
+        await client.sendMessage(message.from, text);
     } catch (err) {
         console.error(`[${CLIENT_ID}] Gagal mengirim balasan ke ${message.from}:`, err.message);
     }
