@@ -67,6 +67,10 @@ if (!fs.existsSync(TEMP_DIR)) {
 // ─────────────────────────────────────────────────────────────
 const client = new Client({
     authStrategy: new LocalAuth({ clientId: CLIENT_ID }),
+    webVersionCache: {
+        type: 'remote',
+        remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html'
+    },
     puppeteer: {
         headless: true,
         args: [
@@ -74,10 +78,26 @@ const client = new Client({
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
             '--disable-gpu',
-            '--no-first-run',
+            '--disable-software-rasterizer',
+            '--disable-extensions',
+            '--disable-component-extensions-with-background-pages',
+            '--disable-default-apps',
             '--mute-audio',
+            '--no-default-browser-check',
+            '--no-first-run',
+            '--disable-background-networking',
             '--disable-background-timer-throttling',
-            '--disable-renderer-backgrounding'
+            '--disable-backgrounding-occluded-windows',
+            '--disable-renderer-backgrounding',
+            '--disable-breakpad',
+            '--disable-client-side-phishing-detection',
+            '--disable-ipc-flooding-protection',
+            '--disable-notifications',
+            '--disable-popup-blocking',
+            '--disable-print-preview',
+            '--disable-speech-api',
+            '--disable-sync',
+            '--js-flags=--max-old-space-size=512'
         ],
     },
     takeoverOnConflict: true,
