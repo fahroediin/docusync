@@ -412,33 +412,25 @@ function getPendingDelete(chatId) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Message Handler — Only processes NEW incoming messages
+// Message Handler — Processes incoming group & private messages
 // ─────────────────────────────────────────────────────────────
 
-client.on('message', async (message) => {
+client.on('message_create', async (message) => {
     try {
-        console.log(`[${CLIENT_ID}] Incoming message from ${message.from}: "${(message.body || '').substring(0, 40)}" (hasMedia: ${message.hasMedia})`);
-
-        // Skip historical messages before bot was ready (5-minute buffer for clock skew)
-        const msgTimestamp = (message.timestamp || 0) * 1000;
-        if (botReadyTimestamp > 0 && msgTimestamp < (botReadyTimestamp - 300000)) {
-            console.log(`[${CLIENT_ID}] Ignored historical message (msgTime: ${new Date(msgTimestamp).toISOString()}, botReady: ${new Date(botReadyTimestamp).toISOString()})`);
-            return;
-        }
-
         const body = (message.body || '').trim();
         const lowerBody = body.toLowerCase();
         const isGroup = message.from.endsWith('@g.us');
 
-        // Fast early exit: Ignore general chat chatter if message is not a command (!), not a document attachment, and not a link
-        const isCommand = lowerBody.startsWith('!');
-        const isDocLink = body.includes('http://') || body.includes('https://');
-        if (!isCommand && !message.hasMedia && !isDocLink) {
+        // Ignore self-sent messages unless it's a command
+        if (message.fromMe && !lowerBody.startsWith('!')) {
             return;
         }
 
+        console.log(`[${CLIENT_ID}] Pesan diterima dari ${message.from}: "${body.substring(0, 40)}" (hasMedia: ${message.hasMedia})`);
+
         // Group filtering check
         if (isGroup && !ALLOW_ALL_GROUPS) {
+            const isCommand = lowerBody.startsWith('!');
             if (!isCommand && ALLOWED_GROUP_IDS.length > 0 && !ALLOWED_GROUP_IDS.includes(message.from)) {
                 return;
             }
