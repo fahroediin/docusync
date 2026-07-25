@@ -534,7 +534,6 @@ client.on('message_create', async (message) => {
             }
 
             try {
-                await sendReply(message, `*Memulai Sinkronisasi...*\nMemeriksa status dokumen di Google Drive.`);
                 const res = await axios.post(`${DOCUSYNC_BASE_URL}/api/v1/sync`, {}, { timeout: 60000 });
 
                 if (res.data && res.data.success) {
