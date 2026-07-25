@@ -123,8 +123,10 @@ function clearChromiumLocks() {
     try {
         const defaultDir = path.join(sessionDir, 'Default');
         if (fs.existsSync(defaultDir)) {
-            for (const name of ['SingletonLock', 'SingletonCookie', 'SingletonSocket']) {
-                fs.rmSync(path.join(defaultDir, name), { force: true });
+            for (const name of ['SingletonLock', 'SingletonCookie', 'SingletonSocket', 'Service Worker/CacheStorage']) {
+                try {
+                    fs.rmSync(path.join(defaultDir, name), { recursive: true, force: true });
+                } catch (_) { }
             }
         }
     } catch (_) { }
