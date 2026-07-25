@@ -5,8 +5,8 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Cooldown period (seconds) before retrying ES connection after a failure
-ES_RETRY_COOLDOWN = 60
+# Cooldown period (seconds) before retrying ES connection after a failure (10 mins)
+ES_RETRY_COOLDOWN = 600
 
 
 class SearchService:
@@ -17,7 +17,7 @@ class SearchService:
         self._last_failure_time: float = 0
 
     async def get_client(self):
-        # If ES recently failed, skip reconnection attempt during cooldown
+        # If ES is not available and failure occurred within cooldown window, fail fast (0ms)
         if not self._es_available and self._last_failure_time:
             elapsed = time.time() - self._last_failure_time
             if elapsed < ES_RETRY_COOLDOWN:
@@ -25,6 +25,7 @@ class SearchService:
 
         if self.es_client is None:
             try:
+                import asyncio
                 from elasticsearch import AsyncElasticsearch
 
                 headers = {}
@@ -34,12 +35,12 @@ class SearchService:
                 self.es_client = AsyncElasticsearch(
                     settings.ELASTICSEARCH_URL,
                     headers=headers,
-                    request_timeout=1,
+                    request_timeout=0.2,
                     retry_on_timeout=False,
                     max_retries=0,
                 )
-                # Quick ping test
-                if await self.es_client.ping():
+                # Quick 0.2s max ping test
+                if await asyncio.wait_for(self.es_client.ping(), timeout=0.2):
                     logger.info(f"Elasticsearch connected at: {settings.ELASTICSEARCH_URL}")
                     self._es_available = True
                 else:
@@ -49,7 +50,7 @@ class SearchService:
                     self._es_available = False
                     self._last_failure_time = time.time()
             except Exception as e:
-                logger.warning(f"Elasticsearch not available: {type(e).__name__}. Using SQLite fallback.")
+                logger.warning(f"Elasticsearch not available ({type(e).__name__}). Using SQLite fallback.")
                 if self.es_client:
                     try:
                         await self.es_client.close()
