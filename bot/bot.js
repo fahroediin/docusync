@@ -136,6 +136,18 @@ function formatUploaderName(str) {
     return clean || str;
 }
 
+async function sendReply(message, text) {
+    try {
+        await client.sendMessage(message.from, text);
+        return;
+    } catch (_) {}
+    try {
+        await message.reply(text);
+    } catch (err) {
+        console.error(`[${CLIENT_ID}] Gagal mengirim balasan ke ${message.from}:`, err.message);
+    }
+}
+
 function getAdminPhoneNumbers() {
     let rawEnv = process.env.ADMIN_PHONE_NUMBERS || '';
     if (fs.existsSync(envPath)) {
@@ -345,10 +357,10 @@ async function processDocumentJob(message, batchIndex, batchTotal) {
                 `*Ukuran File*: ${sizeMB} MB\n\n` +
                 `*Link Google Drive*:\n${doc.gdrive_link}`;
 
-            await message.reply(replyText);
+            await sendReply(message, replyText);
             console.log(`[${CLIENT_ID}] ${isDuplicate ? 'Duplikat' : 'Sukses upload'} "${doc.title}" dari ${cleanUploader}`);
         } else {
-            await message.reply(`Gagal menyimpan dokumen. Silakan coba lagi.`);
+            await sendReply(message, `Gagal menyimpan dokumen. Silakan coba lagi.`);
         }
     } catch (error) {
         let errMsg = error.response?.data?.detail || error.message || String(error);
@@ -358,7 +370,7 @@ async function processDocumentJob(message, batchIndex, batchTotal) {
         const printableMsg = (errMsg === 'r' || !errMsg) ? 'Koneksi ke server DocuSync gagal' : errMsg;
         console.error(`[${CLIENT_ID}] Error processing document:`, printableMsg);
         try {
-            await message.reply(`Gagal mengunggah dokumen: ${printableMsg}`);
+            await sendReply(message, `Gagal mengunggah dokumen: ${printableMsg}`);
         } catch (_) {}
     }
 }
@@ -442,12 +454,12 @@ client.on('message_create', async (message) => {
         // Command: !groupid
         if (lowerBody === '!groupid' || lowerBody === '!id') {
             if (isGroup) {
-                await message.reply(
+                await sendReply(message,
                     `*Info Grup WhatsApp*\n\n` +
                     `• Group ID: \`${message.from}\``
                 );
             } else {
-                await message.reply(`Command ini hanya dapat digunakan di dalam grup.`);
+                await sendReply(message, `Command ini hanya dapat digunakan di dalam grup.`);
             }
             return;
         }
@@ -462,7 +474,7 @@ client.on('message_create', async (message) => {
                 `• Elasticsearch: ${health?.elasticsearch_online ? 'Terhubung' : 'Offline (SQLite Fallback)'}\n\n` +
                 `Kirim file (PDF/DOCX/XLSX) untuk menyimpan ke Google Drive.`;
             
-            await message.reply(statusText);
+            await sendReply(message, statusText);
             return;
         }
 
@@ -484,7 +496,7 @@ client.on('message_create', async (message) => {
                 `7. Lihat Group ID:\n` +
                 `   !groupid (hanya di grup)`;
             
-            await message.reply(helpText);
+            await sendReply(message, helpText);
             return;
         }
 
@@ -492,12 +504,12 @@ client.on('message_create', async (message) => {
         if (lowerBody === '!sync' || lowerBody === '!sinkron') {
             const isAdmin = await isSenderAdmin(message);
             if (!isAdmin) {
-                await message.reply(`hanya admin yang dapat melakukan sinkronisasi`);
+                await sendReply(message, `hanya admin yang dapat melakukan sinkronisasi`);
                 return;
             }
 
             try {
-                await message.reply(`*Memulai Sinkronisasi...*\nMemeriksa status dokumen di Google Drive.`);
+                await sendReply(message, `*Memulai Sinkronisasi...*\nMemeriksa status dokumen di Google Drive.`);
                 const res = await axios.post(`${DOCUSYNC_BASE_URL}/api/v1/sync`, {}, { timeout: 60000 });
 
                 if (res.data && res.data.success) {
@@ -513,14 +525,14 @@ client.on('message_create', async (message) => {
                         });
                     }
 
-                    await message.reply(replyText);
+                    await sendReply(message, replyText);
                     console.log(`[${CLIENT_ID}] Admin sync completed: ${data.total_cleaned}/${data.total_checked} cleaned.`);
                 } else {
-                    await message.reply(`Gagal melakukan sinkronisasi.`);
+                    await sendReply(message, `Gagal melakukan sinkronisasi.`);
                 }
             } catch (err) {
                 console.error(`[${CLIENT_ID}] Error syncing with GDrive:`, err.response?.data?.detail || err.message);
-                await message.reply(`Gagal sinkronisasi: ${err.response?.data?.detail || err.message}`);
+                await sendReply(message, `Gagal sinkronisasi: ${err.response?.data?.detail || err.message}`);
             }
             return;
         }
@@ -535,7 +547,7 @@ client.on('message_create', async (message) => {
             if (selectedIdx >= 1 && selectedIdx <= pendingDocs.length) {
                 const isAdmin = await isSenderAdmin(message);
                 if (!isAdmin) {
-                    await message.reply(`hanya admin yang dapat menghapus dokumen`);
+                    await sendReply(message, `hanya admin yang dapat menghapus dokumen`);
                     return;
                 }
 
@@ -551,14 +563,14 @@ client.on('message_create', async (message) => {
                             `*Judul*: ${targetDoc.title}\n` +
                             `*Pengunggah*: ${formatUploaderName(targetDoc.uploader)}\n\n` +
                             `Dokumen telah dihapus dari database dan Google Drive.`;
-                        await message.reply(replyText);
+                        await sendReply(message, replyText);
                         console.log(`[${CLIENT_ID}] Admin menghapus dokumen [pilihan ${selectedIdx}] "${targetDoc.title}" (${targetDoc.id})`);
                     } else {
-                        await message.reply(`Gagal menghapus dokumen.`);
+                        await sendReply(message, `Gagal menghapus dokumen.`);
                     }
                 } catch (err) {
                     console.error(`[${CLIENT_ID}] Error deleting document by index:`, err.response?.data?.detail || err.message);
-                    await message.reply(`Gagal menghapus dokumen: ${err.response?.data?.detail || err.message}`);
+                    await sendReply(message, `Gagal menghapus dokumen: ${err.response?.data?.detail || err.message}`);
                 }
                 return;
             }
@@ -568,13 +580,13 @@ client.on('message_create', async (message) => {
         if (lowerBody.startsWith('!hapus ') || lowerBody.startsWith('!delete ')) {
             const isAdmin = await isSenderAdmin(message);
             if (!isAdmin) {
-                await message.reply(`hanya admin yang dapat menghapus dokumen`);
+                await sendReply(message, `hanya admin yang dapat menghapus dokumen`);
                 return;
             }
 
             const targetQuery = body.split(/\s+/).slice(1).join(' ').trim();
             if (!targetQuery) {
-                await message.reply(`*Cara Menghapus Dokumen*:\nKetik: \`!hapus <Nama_Dokumen>\`\n\n_Contoh_: \`!hapus Revisi Quotation\``);
+                await sendReply(message, `*Cara Menghapus Dokumen*:\nKetik: \`!hapus <Nama_Dokumen>\`\n\n_Contoh_: \`!hapus Revisi Quotation\``);
                 return;
             }
 
@@ -597,7 +609,7 @@ client.on('message_create', async (message) => {
                     docs = searchRes.data?.results || [];
 
                     if (docs.length === 0) {
-                        await message.reply(`Tidak ditemukan dokumen dengan kata kunci: *"${targetQuery}"*.`);
+                        await sendReply(message, `Tidak ditemukan dokumen dengan kata kunci: *"${targetQuery}"*.`);
                         return;
                     }
 
@@ -618,7 +630,7 @@ client.on('message_create', async (message) => {
                         multiMsg += `${idx + 1}. *${d.title}*\n   Pengunggah: ${formatUploaderName(d.uploader)}\n\n`;
                     });
                     multiMsg += `Balas dengan angka *1* s/d *${docs.length}* untuk memilih dokumen yang ingin dihapus.`;
-                    await message.reply(multiMsg);
+                    await sendReply(message, multiMsg);
                     return;
                 }
 
@@ -631,14 +643,14 @@ client.on('message_create', async (message) => {
                         `*Judul*: ${targetDoc.title}\n` +
                         `*Pengunggah*: ${formatUploaderName(targetDoc.uploader)}\n\n` +
                         `Dokumen telah dihapus dari database dan Google Drive.`;
-                    await message.reply(replyText);
+                    await sendReply(message, replyText);
                     console.log(`[${CLIENT_ID}] Admin menghapus dokumen "${targetDoc.title}" (${targetDoc.id})`);
                 } else {
-                    await message.reply(`Gagal menghapus dokumen.`);
+                    await sendReply(message, `Gagal menghapus dokumen.`);
                 }
             } catch (err) {
                 console.error(`[${CLIENT_ID}] Error deleting document:`, err.response?.data?.detail || err.message);
-                await message.reply(`Gagal menghapus dokumen: ${err.response?.data?.detail || err.message}`);
+                await sendReply(message, `Gagal menghapus dokumen: ${err.response?.data?.detail || err.message}`);
             }
             return;
         }
@@ -647,7 +659,7 @@ client.on('message_create', async (message) => {
         if (lowerBody.startsWith('!cari ')) {
             const query = body.substring(6).trim();
             if (!query) {
-                await message.reply('Contoh: `!cari laporan keuangan`');
+                await sendReply(message, 'Contoh: `!cari laporan keuangan`');
                 return;
             }
 
@@ -658,7 +670,7 @@ client.on('message_create', async (message) => {
 
                 const data = res.data;
                 if (data.total === 0 || !data.results || data.results.length === 0) {
-                    await message.reply(`Tidak ditemukan dokumen untuk *"${query}"*.`);
+                    await sendReply(message, `Tidak ditemukan dokumen untuk *"${query}"*.`);
                     return;
                 }
 
@@ -667,9 +679,9 @@ client.on('message_create', async (message) => {
                     const uploaderName = formatUploaderName(doc.uploader);
                     replyText += `${idx + 1}. *${doc.title}*\n   Pengunggah: ${uploaderName}\n   Link: ${doc.gdrive_link}\n\n`;
                 });
-                await message.reply(replyText);
+                await sendReply(message, replyText);
             } catch (err) {
-                await message.reply(`Gagal pencarian: ${err.response?.data?.detail || err.message}`);
+                await sendReply(message, `Gagal pencarian: ${err.response?.data?.detail || err.message}`);
             }
             return;
         }
@@ -683,7 +695,7 @@ client.on('message_create', async (message) => {
 
                 const data = res.data;
                 if (data.total === 0 || !data.documents || data.documents.length === 0) {
-                    await message.reply(`Belum ada dokumen tersimpan.`);
+                    await sendReply(message, `Belum ada dokumen tersimpan.`);
                     return;
                 }
 
@@ -693,9 +705,9 @@ client.on('message_create', async (message) => {
                     replyText += `${idx + 1}. *${doc.title}*\n   Pengunggah: ${uploaderName}\n   Link: ${doc.gdrive_link}\n\n`;
                 });
                 replyText += `_Gunakan !cari <keyword> untuk mencari spesifik._`;
-                await message.reply(replyText);
+                await sendReply(message, replyText);
             } catch (err) {
-                await message.reply(`Gagal mengambil daftar: ${err.message}`);
+                await sendReply(message, `Gagal mengambil daftar: ${err.message}`);
             }
             return;
         }
