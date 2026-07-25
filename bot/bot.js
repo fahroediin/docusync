@@ -69,7 +69,13 @@ const client = new Client({
     authStrategy: new LocalAuth({ clientId: CLIENT_ID }),
     webVersionCache: { type: 'none' },
     puppeteer: {
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-gpu',
+            '--no-first-run'
+        ],
     },
 });
 
