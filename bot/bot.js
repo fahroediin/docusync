@@ -275,7 +275,7 @@ class MediaQueue {
 
         batch.timer = setTimeout(() => {
             this.flushBatch(senderKey);
-        }, 1500);
+        }, 300);
     }
 
     async flushBatch(senderKey) {

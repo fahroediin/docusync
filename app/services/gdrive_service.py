@@ -81,7 +81,8 @@ class GDriveService:
             'parents': [self.folder_id.strip()]
         }
 
-        media = MediaFileUpload(file_path, mimetype=mimetype, resumable=True)
+        is_resumable = os.path.exists(file_path) and os.path.getsize(file_path) > 5 * 1024 * 1024
+        media = MediaFileUpload(file_path, mimetype=mimetype, resumable=is_resumable)
 
         try:
             file = self.service.files().create(
