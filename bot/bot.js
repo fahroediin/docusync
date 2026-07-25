@@ -76,10 +76,7 @@ for (const p of ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/goo
 // ─────────────────────────────────────────────────────────────
 const client = new Client({
     authStrategy: new LocalAuth({ clientId: CLIENT_ID }),
-    webVersionCache: {
-        type: 'remote',
-        remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1014114408.html'
-    },
+    webVersionCache: { type: 'none' },
     puppeteer: {
         headless: true,
         executablePath: systemChromiumPath,
@@ -89,7 +86,6 @@ const client = new Client({
             '--disable-dev-shm-usage',
             '--disable-accelerated-2d-canvas',
             '--no-first-run',
-            '--no-zygote',
             '--disable-gpu',
             '--disable-software-rasterizer',
             '--disable-extensions'
