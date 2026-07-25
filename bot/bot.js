@@ -85,6 +85,7 @@ const client = new Client({
             '--disable-background-networking',
             '--disable-background-timer-throttling',
             '--disable-backgrounding-occluded-windows',
+            '--disable-renderer-backgrounding',
             '--disable-breakpad',
             '--disable-client-side-phishing-detection',
             '--disable-ipc-flooding-protection',
