@@ -63,18 +63,37 @@ if (!fs.existsSync(TEMP_DIR)) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Client Configuration
+// Client Configuration (Resource-Optimized for VPS)
 // ─────────────────────────────────────────────────────────────
 const client = new Client({
     authStrategy: new LocalAuth({ clientId: CLIENT_ID }),
     webVersionCache: { type: 'none' },
     puppeteer: {
+        headless: true,
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
             '--disable-gpu',
-            '--no-first-run'
+            '--disable-software-rasterizer',
+            '--disable-extensions',
+            '--disable-component-extensions-with-background-pages',
+            '--disable-default-apps',
+            '--mute-audio',
+            '--no-default-browser-check',
+            '--no-first-run',
+            '--disable-background-networking',
+            '--disable-background-timer-throttling',
+            '--disable-backgrounding-occluded-windows',
+            '--disable-breakpad',
+            '--disable-client-side-phishing-detection',
+            '--disable-ipc-flooding-protection',
+            '--disable-notifications',
+            '--disable-popup-blocking',
+            '--disable-print-preview',
+            '--disable-speech-api',
+            '--disable-sync',
+            '--js-flags=--max-old-space-size=128'
         ],
     },
 });
