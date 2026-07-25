@@ -663,24 +663,31 @@ client.on('message_create', async (message) => {
                 return;
             }
 
+            console.log(`[${CLIENT_ID}] Memproses command !cari "${query}" dari ${message.from}...`);
             try {
                 const res = await axios.get(DOCUSYNC_SEARCH_URL, {
-                    params: { q: query, page: 1, size: 5 }
+                    params: { q: query, page: 1, size: 5 },
+                    timeout: 5000
                 });
 
-                const data = res.data;
-                if (data.total === 0 || !data.results || data.results.length === 0) {
+                const data = res.data || {};
+                const results = data.results || [];
+                const total = data.total || 0;
+
+                if (total === 0 || results.length === 0) {
                     await sendReply(message, `Tidak ditemukan dokumen untuk *"${query}"*.`);
                     return;
                 }
 
-                let replyText = `*Hasil Pencarian* ("${query}")\nDitemukan: ${data.total} dokumen\n\n`;
-                data.results.forEach((doc, idx) => {
+                let replyText = `*Hasil Pencarian* ("${query}")\nDitemukan: ${total} dokumen\n\n`;
+                results.forEach((doc, idx) => {
                     const uploaderName = formatUploaderName(doc.uploader);
                     replyText += `${idx + 1}. *${doc.title}*\n   Pengunggah: ${uploaderName}\n   Link: ${doc.gdrive_link}\n\n`;
                 });
                 await sendReply(message, replyText);
+                console.log(`[${CLIENT_ID}] Sukses mengirim balasan !cari ke ${message.from}`);
             } catch (err) {
+                console.error(`[${CLIENT_ID}] Error !cari:`, err.message);
                 await sendReply(message, `Gagal pencarian: ${err.response?.data?.detail || err.message}`);
             }
             return;
@@ -688,25 +695,32 @@ client.on('message_create', async (message) => {
 
         // Command: !list
         if (lowerBody === '!list' || lowerBody === '!daftar') {
+            console.log(`[${CLIENT_ID}] Memproses command !list dari ${message.from}...`);
             try {
                 const res = await axios.get(DOCUSYNC_LIST_URL, {
-                    params: { page: 1, size: 5 }
+                    params: { page: 1, size: 5 },
+                    timeout: 5000
                 });
 
-                const data = res.data;
-                if (data.total === 0 || !data.documents || data.documents.length === 0) {
+                const data = res.data || {};
+                const docs = data.documents || [];
+                const total = data.total || 0;
+
+                if (total === 0 || docs.length === 0) {
                     await sendReply(message, `Belum ada dokumen tersimpan.`);
                     return;
                 }
 
-                let replyText = `*Daftar Dokumen Terbaru* (${data.documents.length}/${data.total})\n\n`;
-                data.documents.forEach((doc, idx) => {
+                let replyText = `*Daftar Dokumen Terbaru* (${docs.length}/${total})\n\n`;
+                docs.forEach((doc, idx) => {
                     const uploaderName = formatUploaderName(doc.uploader);
                     replyText += `${idx + 1}. *${doc.title}*\n   Pengunggah: ${uploaderName}\n   Link: ${doc.gdrive_link}\n\n`;
                 });
                 replyText += `_Gunakan !cari <keyword> untuk mencari spesifik._`;
                 await sendReply(message, replyText);
+                console.log(`[${CLIENT_ID}] Sukses mengirim balasan !list ke ${message.from}`);
             } catch (err) {
+                console.error(`[${CLIENT_ID}] Error !list:`, err.message);
                 await sendReply(message, `Gagal mengambil daftar: ${err.message}`);
             }
             return;
