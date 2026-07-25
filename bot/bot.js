@@ -67,10 +67,7 @@ if (!fs.existsSync(TEMP_DIR)) {
 // ─────────────────────────────────────────────────────────────
 const client = new Client({
     authStrategy: new LocalAuth({ clientId: CLIENT_ID }),
-    webVersionCache: {
-        type: 'remote',
-        remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html'
-    },
+    webVersionCache: { type: 'none' },
     puppeteer: {
         headless: true,
         args: [
@@ -97,11 +94,9 @@ const client = new Client({
             '--disable-print-preview',
             '--disable-speech-api',
             '--disable-sync',
-            '--js-flags=--max-old-space-size=512'
+            '--js-flags=--max-old-space-size=128'
         ],
     },
-    takeoverOnConflict: true,
-    takeoverTimeoutMs: 0
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -131,16 +126,6 @@ function formatUploaderName(str) {
     let clean = str.replace(/\s*\([\d\w@._-]+\)\s*$/, '').trim();
     clean = clean.replace(/@c\.us|@g\.us/gi, '').trim();
     return clean || str;
-}
-
-async function sendFastReply(message, text) {
-    try {
-        await client.sendMessage(message.from, text);
-    } catch (_) {
-        try {
-            await message.reply(text);
-        } catch (_) {}
-    }
 }
 
 function getAdminPhoneNumbers() {
@@ -690,13 +675,12 @@ client.on('message', async (message) => {
         if (lowerBody === '!list' || lowerBody === '!daftar') {
             try {
                 const res = await axios.get(DOCUSYNC_LIST_URL, {
-                    params: { page: 1, size: 5 },
-                    timeout: 5000
+                    params: { page: 1, size: 5 }
                 });
 
                 const data = res.data;
                 if (data.total === 0 || !data.documents || data.documents.length === 0) {
-                    await sendFastReply(message, `Belum ada dokumen tersimpan.`);
+                    await message.reply(`Belum ada dokumen tersimpan.`);
                     return;
                 }
 
@@ -706,9 +690,9 @@ client.on('message', async (message) => {
                     replyText += `${idx + 1}. *${doc.title}*\n   Pengunggah: ${uploaderName}\n   Link: ${doc.gdrive_link}\n\n`;
                 });
                 replyText += `_Gunakan !cari <keyword> untuk mencari spesifik._`;
-                await sendFastReply(message, replyText);
+                await message.reply(replyText);
             } catch (err) {
-                await sendFastReply(message, `Gagal mengambil daftar: ${err.message}`);
+                await message.reply(`Gagal mengambil daftar: ${err.message}`);
             }
             return;
         }
