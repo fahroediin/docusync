@@ -333,7 +333,6 @@ class MediaQueue {
             try {
                 await sampleMessage.reply(replyText);
                 console.log(`[${CLIENT_ID}] ${item.isDuplicate ? 'Duplikat' : 'Sukses upload'} "${doc.title}" dari ${cleanUploader}`);
-            } catch (_) {}
         } else {
             // Multiple files: 1 Consolidated Single WhatsApp Reply Message
             const cleanUploader = formatUploaderName(successful[0].doc.uploader);
