@@ -65,6 +65,23 @@ if (!fs.existsSync(TEMP_DIR)) {
 // ─────────────────────────────────────────────────────────────
 // Client Configuration (Resource-Optimized for VPS)
 // ─────────────────────────────────────────────────────────────
+process.on('uncaughtException', (error) => {
+    if (error.message && error.message.includes('Execution context was destroyed')) {
+        console.warn(`[${CLIENT_ID}] Ignored transient Puppeteer navigation error:`, error.message);
+        return;
+    }
+    console.error(`[${CLIENT_ID}] Uncaught Exception:`, error.message);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    const reasonStr = String(reason?.message || reason || '');
+    if (reasonStr.includes('Execution context was destroyed')) {
+        console.warn(`[${CLIENT_ID}] Ignored transient Puppeteer navigation rejection.`);
+        return;
+    }
+    console.error(`[${CLIENT_ID}] Unhandled Rejection:`, reasonStr);
+});
+
 const client = new Client({
     authStrategy: new LocalAuth({ clientId: CLIENT_ID }),
     puppeteer: {
@@ -85,9 +102,7 @@ const client = new Client({
         ],
         timeout: 60000,
         slowMo: 0
-    },
-    takeoverOnConflict: true,
-    takeoverTimeoutMs: 0
+    }
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -784,33 +799,12 @@ client.on('message', async (message) => {
 // Initialization
 // ─────────────────────────────────────────────────────────────
 
-async function init() {
+function init() {
     clearChromiumLocks();
     console.log(`[${CLIENT_ID}] Menginisialisasi WhatsApp Client — Menunggu QR code...`);
-
-    return new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => {
-            reject(new Error(`[${CLIENT_ID}] Inisialisasi timeout (5 menit)`));
-        }, 5 * 60 * 1000);
-
-        client.on('ready', () => {
-            clearTimeout(timeout);
-            resolve();
-        });
-
-        client.on('auth_failure', (msg) => {
-            clearTimeout(timeout);
-            reject(new Error(`[${CLIENT_ID}] Autentikasi gagal: ${msg}`));
-        });
-
-        client.initialize().catch((err) => {
-            clearTimeout(timeout);
-            reject(err);
-        });
+    client.initialize().catch((err) => {
+        console.warn(`[${CLIENT_ID}] Retrying client initialization after notice:`, err.message);
     });
 }
 
-init().catch((err) => {
-    console.error(`[${CLIENT_ID}] Fatal Error:`, err.message);
-    process.exit(1);
-});
+init();
