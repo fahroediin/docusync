@@ -91,6 +91,8 @@ const client = new Client({
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
             '--disable-accelerated-2d-canvas',
+            '--disable-site-isolation-trials',
+            '--disable-features=IsolateOrigins,site-per-process',
             '--no-first-run',
             '--disable-gpu',
             '--disable-infobars',
@@ -100,7 +102,7 @@ const client = new Client({
             '--ignore-ssl-errors',
             '--ignore-certificate-errors-spki-list'
         ],
-        timeout: 60000,
+        timeout: 90000,
         slowMo: 0
     }
 });
