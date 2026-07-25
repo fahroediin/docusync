@@ -34,7 +34,7 @@ class SearchService:
                 self.es_client = AsyncElasticsearch(
                     settings.ELASTICSEARCH_URL,
                     headers=headers,
-                    request_timeout=3,
+                    request_timeout=1,
                     retry_on_timeout=False,
                     max_retries=0,
                 )
