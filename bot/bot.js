@@ -92,19 +92,10 @@ const client = new Client({
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
             '--disable-accelerated-2d-canvas',
-            '--disable-site-isolation-trials',
-            '--disable-features=IsolateOrigins,site-per-process',
             '--no-first-run',
             '--disable-gpu',
-            '--disable-infobars',
-            '--window-position=0,0',
-            '--window-size=1366,768',
-            '--ignore-certificate-errors',
-            '--ignore-ssl-errors',
-            '--ignore-certificate-errors-spki-list'
-        ],
-        timeout: 90000,
-        slowMo: 0
+            '--window-size=1366,768'
+        ]
     }
 });
 
@@ -123,9 +114,9 @@ function clearChromiumLocks() {
     try {
         const defaultDir = path.join(sessionDir, 'Default');
         if (fs.existsSync(defaultDir)) {
-            for (const name of ['SingletonLock', 'SingletonCookie', 'SingletonSocket', 'Service Worker/CacheStorage']) {
+            for (const name of ['SingletonLock', 'SingletonCookie', 'SingletonSocket']) {
                 try {
-                    fs.rmSync(path.join(defaultDir, name), { recursive: true, force: true });
+                    fs.rmSync(path.join(defaultDir, name), { force: true });
                 } catch (_) { }
             }
         }
