@@ -87,6 +87,7 @@ const client = new Client({
     puppeteer: {
         headless: true,
         protocolTimeout: 300000,
+        timeout: 120000,
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -380,6 +381,12 @@ client.on('qr', (qr) => {
 
 client.on('ready', async () => {
     botReadyTimestamp = Date.now();
+    if (client.pupPage) {
+        try {
+            client.pupPage.setDefaultTimeout(120000);
+            client.pupPage.setDefaultNavigationTimeout(120000);
+        } catch (_) {}
+    }
     console.log(`[${CLIENT_ID}] BOT WHATSAPP DOCUSYNC SIAP BEROPERASI!`);
     await checkDocuSyncServer();
     console.log(`[${CLIENT_ID}] Bot hanya memproses pesan baru mulai dari sekarang.`);
