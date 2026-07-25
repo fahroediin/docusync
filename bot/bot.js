@@ -397,31 +397,23 @@ function getPendingDelete(chatId) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Message Handler — Processes incoming messages & commands
+// Message Handler — Only processes NEW incoming messages
 // ─────────────────────────────────────────────────────────────
 
-client.on('message_create', async (message) => {
+client.on('message', async (message) => {
     try {
-        // Skip historical messages received more than 60 seconds before bot became ready
+        console.log(`[${CLIENT_ID}] Incoming message from ${message.from}: "${(message.body || '').substring(0, 40)}" (hasMedia: ${message.hasMedia})`);
+
+        // Skip historical messages before bot was ready
         const msgTimestamp = (message.timestamp || 0) * 1000;
         if (botReadyTimestamp > 0 && msgTimestamp < botReadyTimestamp - 60000) {
+            console.log(`[${CLIENT_ID}] Ignored historical message (timestamp: ${msgTimestamp}, botReady: ${botReadyTimestamp})`);
             return;
         }
 
         const body = (message.body || '').trim();
         const lowerBody = body.toLowerCase();
         const isGroup = message.from.endsWith('@g.us');
-
-        // Prevent infinite loops on self messages (only process self messages if they are commands or media uploads)
-        if (message.fromMe) {
-            const isCommand = lowerBody.startsWith('!');
-            const hasMedia = message.hasMedia;
-            if (!isCommand && !hasMedia) {
-                return;
-            }
-        }
-
-        console.log(`[${CLIENT_ID}] Received message from ${message.from}: "${body.substring(0, 40)}" (hasMedia: ${message.hasMedia})`);
 
         // Group filtering check
         if (isGroup && !ALLOW_ALL_GROUPS) {
