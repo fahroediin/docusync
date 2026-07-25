@@ -768,44 +768,41 @@ client.on('message_create', async (message) => {
         // ── File/Document Listener ──────────────────────────────
         if (!message.hasMedia) return;
 
-        // Allowed file extensions & size check
         const allowedExts = (process.env.ALLOWED_FILE_EXTENSIONS || 'pdf,xls,xlsx,doc,docx')
             .split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
 
-        const rawFilename = message._data?.filename || '';
+        const rawFilename = message._data?.filename || message.body || message._data?.caption || 'document';
         const ext = (path.extname(rawFilename) || '').toLowerCase().replace('.', '');
-        const mimetype = message._data?.mimetype || '';
+        const mimetype = (message._data?.mimetype || message._data?.type || '').toLowerCase();
         const rawSizeBytes = message._data?.size || 0;
 
+        console.log(`[${CLIENT_ID}] Dokumen terdeteksi dari ${message.from}: "${rawFilename}" (mimetype: ${mimetype}, ext: ${ext})`);
+
         // Check file size against MAX_UPLOAD_SIZE_MB
-        if (rawSizeBytes > MAX_UPLOAD_SIZE_BYTES) {
+        if (rawSizeBytes > 0 && rawSizeBytes > MAX_UPLOAD_SIZE_BYTES) {
+            console.log(`[${CLIENT_ID}] File "${rawFilename}" diabaikan karena ukuran (${(rawSizeBytes / 1024 / 1024).toFixed(1)} MB) > ${MAX_UPLOAD_SIZE_MB} MB`);
             if (!isGroup) {
-                await message.reply(`Ukuran file melebihi batas maksimal (${MAX_UPLOAD_SIZE_MB} MB).`);
-            } else {
-                console.log(`[${CLIENT_ID}] Mengabaikan file "${rawFilename}" karena ukuran (${(rawSizeBytes / 1024 / 1024).toFixed(1)} MB) > ${MAX_UPLOAD_SIZE_MB} MB`);
+                await sendReply(message, `Ukuran file melebihi batas maksimal (${MAX_UPLOAD_SIZE_MB} MB).`);
             }
             return;
         }
 
-        // Check by extension
-        const isAllowedExt = ext && allowedExts.includes(ext);
+        // Broad extension and MIME type validation
+        const isPdf = ext === 'pdf' || mimetype.includes('pdf');
+        const isExcel = ext === 'xls' || ext === 'xlsx' || mimetype.includes('excel') || mimetype.includes('spreadsheet') || mimetype.includes('sheet');
+        const isWord = ext === 'doc' || ext === 'docx' || mimetype.includes('word') || mimetype.includes('wordprocessing');
+        const isAllowed = isPdf || isExcel || isWord || (ext && allowedExts.includes(ext));
 
-        // Check by MIME type as fallback
-        const isAllowedMime = mimetype && (
-            (mimetype.includes('pdf') && allowedExts.includes('pdf')) ||
-            ((mimetype.includes('excel') || mimetype.includes('spreadsheet')) && (allowedExts.includes('xls') || allowedExts.includes('xlsx'))) ||
-            ((mimetype.includes('word') || mimetype.includes('officedocument.wordprocessing')) && (allowedExts.includes('doc') || allowedExts.includes('docx')))
-        );
-
-        if (!isAllowedExt && !isAllowedMime) {
+        if (!isAllowed) {
+            console.log(`[${CLIENT_ID}] File "${rawFilename}" diabaikan karena format (ext: "${ext}", mimetype: "${mimetype}") tidak diizinkan.`);
             if (!isGroup) {
                 const allowedStr = allowedExts.join(', ').toUpperCase();
-                await message.reply(`Tipe file tidak diizinkan. Format yang diterima: *${allowedStr}*`);
+                await sendReply(message, `Tipe file tidak diizinkan. Format yang diterima: *${allowedStr}*`);
             }
             return;
         }
 
-        console.log(`[${CLIENT_ID}] Dokumen "${rawFilename}" dari ${message.from} — masuk antrean.`);
+        console.log(`[${CLIENT_ID}] Dokumen valid "${rawFilename}" dari ${message.from} — masuk antrean.`);
         mediaQueue.enqueue(message, processDocumentJob);
 
     } catch (err) {
