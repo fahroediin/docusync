@@ -62,33 +62,6 @@ if (!fs.existsSync(TEMP_DIR)) {
     fs.mkdirSync(TEMP_DIR, { recursive: true });
 }
 
-// Utility function to clean lock files
-function clearChromiumLocks() {
-    try {
-        const sessionDir = path.resolve('.wwebjs_auth', `session-${CLIENT_ID}`);
-        if (!fs.existsSync(sessionDir)) return;
-        for (const name of ['SingletonLock', 'SingletonCookie', 'SingletonSocket']) {
-            try {
-                fs.rmSync(path.join(sessionDir, name), { force: true });
-            } catch (_) {}
-        }
-    } catch (_) {}
-}
-
-// Clear any orphaned lock files from previous crashes
-clearChromiumLocks();
-
-// Detect system Chromium/Chrome executable on Linux VPS if available
-let systemChromiumPath = process.env.PUPPETEER_EXECUTABLE_PATH || undefined;
-if (!systemChromiumPath) {
-    for (const p of ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome-stable', '/usr/bin/google-chrome']) {
-        if (fs.existsSync(p)) {
-            systemChromiumPath = p;
-            break;
-        }
-    }
-}
-
 // ─────────────────────────────────────────────────────────────
 // Client Configuration
 // ─────────────────────────────────────────────────────────────
@@ -96,19 +69,7 @@ const client = new Client({
     authStrategy: new LocalAuth({ clientId: CLIENT_ID }),
     webVersionCache: { type: 'none' },
     puppeteer: {
-        headless: true,
-        executablePath: systemChromiumPath,
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--disable-gpu',
-            '--disable-software-rasterizer',
-            '--disable-extensions',
-            '--single-process'
-        ],
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
     },
 });
 
