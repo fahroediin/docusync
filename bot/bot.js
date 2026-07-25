@@ -247,17 +247,15 @@ async function sendMediaToServer(message) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Bulk Media Queue Manager
+// Bulk Media Queue Manager (Parallel Processing & Single Consolidated Reply)
 // ─────────────────────────────────────────────────────────────
 
 class MediaQueue {
     constructor() {
-        this.queue = [];
-        this.isProcessing = false;
         this.senderBatches = new Map();
     }
 
-    enqueue(message, processCallback) {
+    enqueue(message) {
         const senderKey = message.from;
 
         if (!this.senderBatches.has(senderKey)) {
@@ -268,103 +266,92 @@ class MediaQueue {
         }
 
         const batch = this.senderBatches.get(senderKey);
-        batch.messages.push({ message, processCallback });
+        batch.messages.push(message);
 
         if (batch.timer) {
             clearTimeout(batch.timer);
         }
 
+        // Wait 600ms to accumulate documents sent in batch
         batch.timer = setTimeout(() => {
             this.flushBatch(senderKey);
-        }, 300);
+        }, 600);
     }
 
     async flushBatch(senderKey) {
         const batch = this.senderBatches.get(senderKey);
         if (!batch || batch.messages.length === 0) return;
 
-        const items = [...batch.messages];
+        const messages = [...batch.messages];
         this.senderBatches.delete(senderKey);
 
-        const count = items.length;
-        const sampleMessage = items[0].message;
+        const count = messages.length;
+        const sampleMessage = messages[0];
 
-        try {
-            if (count === 1) {
-                await sampleMessage.reply(`Dokumen diterima, sedang diproses ke Google Drive...`);
-            } else {
-                await sampleMessage.reply(`${count} dokumen diterima, sedang diproses ke Google Drive...`);
+        // Process all document uploads in PARALLEL for maximum VPS speed
+        const uploadPromises = messages.map(async (msg) => {
+            try {
+                const res = await sendMediaToServer(msg);
+                if (res && res.success && res.document) {
+                    return {
+                        success: true,
+                        doc: res.document,
+                        isDuplicate: res.message && res.message.includes('sudah pernah disimpan')
+                    };
+                }
+                return { success: false, error: 'Gagal menyimpan' };
+            } catch (err) {
+                let errMsg = err.response?.data?.detail || err.message || String(err);
+                return { success: false, error: errMsg };
             }
-        } catch (err) {
-            console.error(`[Queue] Gagal kirim notifikasi batch ke ${senderKey}:`, err.message);
+        });
+
+        const results = await Promise.all(uploadPromises);
+
+        const successful = results.filter(r => r.success);
+        if (successful.length === 0) {
+            try {
+                await sampleMessage.reply(`Gagal menyimpan dokumen. Silakan coba lagi.`);
+            } catch (_) {}
+            return;
         }
 
-        for (let i = 0; i < items.length; i++) {
-            this.queue.push({
-                ...items[i],
-                batchIndex: i + 1,
-                batchTotal: count,
-            });
-        }
-
-        this.processNext();
-    }
-
-    async processNext() {
-        if (this.isProcessing) return;
-        if (this.queue.length === 0) return;
-
-        this.isProcessing = true;
-        const job = this.queue.shift();
-
-        try {
-            await job.processCallback(job.message, job.batchIndex, job.batchTotal);
-        } catch (err) {
-            console.error(`[Queue] Error processing document from ${job.message.from}:`, err.message);
-        } finally {
-            this.isProcessing = false;
-            setTimeout(() => this.processNext(), 100);
-        }
-    }
-}
-
-const mediaQueue = new MediaQueue();
-
-/**
- * Clean & professional document upload response formatter.
- */
-async function processDocumentJob(message, batchIndex, batchTotal) {
-    try {
-        const res = await sendMediaToServer(message);
-
-        if (res && res.success && res.document) {
-            const doc = res.document;
+        // Send 1 single consolidated WhatsApp reply message
+        if (successful.length === 1) {
+            const item = successful[0];
+            const doc = item.doc;
             const sizeMB = (doc.file_size / (1024 * 1024)).toFixed(2);
-            const isDuplicate = res.message && res.message.includes('sudah pernah disimpan');
-            const header = isDuplicate ? '*Dokumen Sudah Pernah Disimpan*' : '*Berhasil Menyimpan Dokumen*';
+            const header = item.isDuplicate ? '*Dokumen Sudah Pernah Disimpan*' : '*Berhasil Menyimpan Dokumen*';
             const cleanUploader = formatUploaderName(doc.uploader);
 
-            let replyText = `${header}\n\n` +
+            const replyText = `${header}\n\n` +
                 `*Judul*: ${doc.title}\n` +
                 `*Pengunggah*: ${cleanUploader}\n` +
                 `*Ukuran File*: ${sizeMB} MB\n\n` +
                 `*Link Google Drive*:\n${doc.gdrive_link}`;
 
-            await message.reply(replyText);
-            console.log(`[${CLIENT_ID}] ${isDuplicate ? 'Duplikat' : 'Sukses upload'} "${doc.title}" dari ${cleanUploader}`);
+            try {
+                await sampleMessage.reply(replyText);
+                console.log(`[${CLIENT_ID}] ${item.isDuplicate ? 'Duplikat' : 'Sukses upload'} "${doc.title}" dari ${cleanUploader}`);
         } else {
-            await message.reply(`Gagal menyimpan dokumen. Silakan coba lagi.`);
+            // Multiple files: 1 Consolidated Single WhatsApp Reply Message
+            const cleanUploader = formatUploaderName(successful[0].doc.uploader);
+            let replyText = `*Berhasil Menyimpan Dokumen* (${successful.length}/${count})\n\n`;
+
+            successful.forEach((item, idx) => {
+                const doc = item.doc;
+                const sizeMB = (doc.file_size / (1024 * 1024)).toFixed(2);
+                replyText += `${idx + 1}. *${doc.title}*\n` +
+                    `   Ukuran: ${sizeMB} MB\n` +
+                    `   Link: ${doc.gdrive_link}\n\n`;
+            });
+
+            replyText += `*Pengunggah*: ${cleanUploader}`;
+            try {
+                await sampleMessage.reply(replyText.trim());
+                console.log(`[${CLIENT_ID}] Sukses batch upload ${successful.length} dokumen dari ${cleanUploader}`);
+            } catch (_) {}
         }
-    } catch (error) {
-        let errMsg = error.response?.data?.detail || error.message || String(error);
-        if (error.errors && Array.isArray(error.errors)) {
-            errMsg = error.errors.map(e => e.message || String(e)).join('; ');
-        }
-        const printableMsg = (errMsg === 'r' || !errMsg) ? 'Koneksi ke server DocuSync gagal' : errMsg;
-        console.error(`[${CLIENT_ID}] Error processing document:`, printableMsg);
-        try {
-            await message.reply(`Gagal mengunggah dokumen: ${printableMsg}`);
-        } catch (_) {}
     }
 }
 
@@ -787,7 +774,7 @@ client.on('message', async (message) => {
         }
 
         console.log(`[${CLIENT_ID}] Dokumen "${rawFilename}" dari ${message.from} — masuk antrean.`);
-        mediaQueue.enqueue(message, processDocumentJob);
+        mediaQueue.enqueue(message);
 
     } catch (err) {
         if (err.message && err.message.length > 1) {
