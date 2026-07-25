@@ -84,37 +84,44 @@ class GDriveService:
         is_resumable = os.path.exists(file_path) and os.path.getsize(file_path) > 5 * 1024 * 1024
         media = MediaFileUpload(file_path, mimetype=mimetype, resumable=is_resumable)
 
-        try:
-            file = self.service.files().create(
-                body=file_metadata,
-                media_body=media,
-                fields='id, name, webViewLink, webContentLink',
-                supportsAllDrives=True
-            ).execute()
-
-            file_id = file.get('id')
-
-            # Set public read permission ("anyone with link")
+        for attempt in range(1, 4):
             try:
-                self.service.permissions().create(
-                    fileId=file_id,
-                    body={'type': 'anyone', 'role': 'reader'},
-                    fields='id',
+                file = self.service.files().create(
+                    body=file_metadata,
+                    media_body=media,
+                    fields='id, name, webViewLink, webContentLink',
                     supportsAllDrives=True
-                ).execute()
-            except Exception as perm_err:
-                logger.warning(f"Failed to set public permission on GDrive file {file_id}: {str(perm_err)}")
+                ).execute(num_retries=3)
 
-            web_link = file.get('webViewLink') or f"https://drive.google.com/file/d/{file_id}/view"
+                file_id = file.get('id')
 
-            return {
-                'file_id': file_id,
-                'web_view_link': web_link,
-                'download_link': file.get('webContentLink'),
-            }
-        except Exception as e:
-            logger.error(f"Error uploading file to Google Drive: {str(e)}")
-            raise e
+                # Set public read permission ("anyone with link")
+                try:
+                    self.service.permissions().create(
+                        fileId=file_id,
+                        body={'type': 'anyone', 'role': 'reader'},
+                        fields='id',
+                        supportsAllDrives=True
+                    ).execute(num_retries=3)
+                except Exception as perm_err:
+                    logger.warning(f"Failed to set public permission on GDrive file {file_id}: {str(perm_err)}")
+
+                web_link = file.get('webViewLink') or f"https://drive.google.com/file/d/{file_id}/view"
+
+                return {
+                    'file_id': file_id,
+                    'web_view_link': web_link,
+                    'download_link': file.get('webContentLink'),
+                }
+            except Exception as e:
+                err_msg = str(e)
+                if attempt < 3 and ('_ssl' in err_msg or 'EOF' in err_msg or 'protocol' in err_msg or 'socket' in err_msg):
+                    logger.warning(f"SSL connection drop to Google Drive (attempt {attempt}/3). Re-initializing service...")
+                    self._init_service()
+                    media = MediaFileUpload(file_path, mimetype=mimetype, resumable=is_resumable)
+                    continue
+                logger.error(f"Error uploading file to Google Drive: {str(e)}")
+                raise e
 
     async def delete_file(self, file_id: str) -> bool:
         if not self.service:

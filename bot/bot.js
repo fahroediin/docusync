@@ -101,6 +101,9 @@ const client = new Client({
             '--no-first-run',
             '--disable-gpu',
             '--window-size=1366,768',
+            '--disable-background-timer-throttling',
+            '--disable-backgrounding-occluded-windows',
+            '--disable-renderer-backgrounding',
             '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
         ]
     }
@@ -311,7 +314,7 @@ class MediaQueue {
             this.queue.push({
                 ...items[i],
                 batchIndex: i + 1,
-                batchTotal: count,
+                batchTotal: items.length,
             });
         }
 
@@ -445,7 +448,14 @@ client.on('message_create', async (message) => {
             return;
         }
 
-        console.log(`[${CLIENT_ID}] Pesan diterima dari ${message.from}: "${body.substring(0, 40)}" (hasMedia: ${message.hasMedia})`);
+        // Fast early exit: Ignore general chatter instantly (0.001ms) without clogging logs or CPU
+        const isCommand = lowerBody.startsWith('!');
+        const isLink = body.includes('http://') || body.includes('https://');
+        if (!isCommand && !message.hasMedia && !isLink) {
+            return;
+        }
+
+        console.log(`[${CLIENT_ID}] Pesan relevan dari ${message.from}: "${body.substring(0, 40)}" (hasMedia: ${message.hasMedia})`);
 
         // Group filtering check
         if (isGroup && !ALLOW_ALL_GROUPS) {

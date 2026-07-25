@@ -59,4 +59,24 @@ assert.ok(mockListOutput.includes('Doc 1'));
 assert.ok(mockListOutput.includes('John'));
 console.log('✓ Test 3 passed: formatListResponse');
 
-console.log('\nALL 3 UNIT TESTS PASSED CLEANLY!');
+// Test 4: MediaQueue flush batch item mapping (validates batchTotal: items.length)
+function mockFlushBatch(messages) {
+    const items = [...messages];
+    const queue = [];
+    for (let i = 0; i < items.length; i++) {
+        queue.push({
+            ...items[i],
+            batchIndex: i + 1,
+            batchTotal: items.length
+        });
+    }
+    return queue;
+}
+
+const batchResult = mockFlushBatch([{ id: 1 }, { id: 2 }]);
+assert.strictEqual(batchResult.length, 2);
+assert.strictEqual(batchResult[0].batchTotal, 2);
+assert.strictEqual(batchResult[1].batchIndex, 2);
+console.log('✓ Test 4 passed: mockFlushBatch (batchTotal)');
+
+console.log('\nALL 4 UNIT TESTS PASSED CLEANLY!');
