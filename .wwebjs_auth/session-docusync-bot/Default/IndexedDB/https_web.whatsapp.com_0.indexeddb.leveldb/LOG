@@ -1,0 +1,14 @@
+2026/07/25-16:23:50.161 15e4 Reusing MANIFEST C:\Users\User\Documents\Github_Fahrudin\SERVICES\docusync\bot\.wwebjs_auth\session-docusync-bot\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/07/25-16:23:50.161 15e4 Recovering log #29
+2026/07/25-16:23:50.261 15e4 Reusing old log C:\Users\User\Documents\Github_Fahrudin\SERVICES\docusync\bot\.wwebjs_auth\session-docusync-bot\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/000029.log 
+2026/07/25-16:23:53.808 4e78 Level-0 table #35: started
+2026/07/25-16:23:53.878 4e78 Level-0 table #35: 1215876 bytes OK
+2026/07/25-16:23:53.881 4e78 Delete type=0 #29
+2026/07/25-16:23:54.279 4e78 Compacting 1@1 + 2@2 files
+2026/07/25-16:23:54.522 4e78 Generated table #36@1: 38419 keys, 2213643 bytes
+2026/07/25-16:23:54.742 4e78 Generated table #37@1: 55440 keys, 1244176 bytes
+2026/07/25-16:23:54.742 4e78 Compacted 1@1 + 2@2 files => 3457819 bytes
+2026/07/25-16:23:54.743 4e78 compacted to: files[ 0 0 2 0 0 0 0 ]
+2026/07/25-16:23:54.743 4e78 Delete type=2 #31
+2026/07/25-16:23:54.743 4e78 Delete type=2 #32
+2026/07/25-16:23:54.743 4e78 Delete type=2 #35
