@@ -48,8 +48,6 @@ docusync/
 │   └── package.json
 ├── storage/                       # Database SQLite & temp directory
 ├── generate_token.py              # Script pembuatan token OAuth 2.0 User (token.json)
-├── credentials.json               # Credentials Google Cloud
-├── token.json                     # OAuth 2.0 User Token Google Drive
 ├── docker-compose.yml             # Elasticsearch local development setup
 ├── requirements.txt               # Dependencies Python
 ├── .env.example                   # Template konfigurasi environment
@@ -68,13 +66,13 @@ Salin `.env.example` menjadi `.env`:
 cp .env.example .env
 ```
 
-Sesuaikan konfigurasi pada file `.env`:
+Sesuaikan konfigurasi pada file `.env` menggunakan data dari template `.env.example`:
 
 ```env
-GDRIVE_FOLDER_ID=1CAppb_5cNz00kXlmt8Fz3QbUKtV0q2QC
+GDRIVE_FOLDER_ID=your_gdrive_folder_id_here
 ALLOWED_FILE_EXTENSIONS=pdf,xls,xlsx,doc,docx
 MAX_UPLOAD_SIZE_MB=50
-ADMIN_PHONE_NUMBERS=6281568218009,61499737415766
+ADMIN_PHONE_NUMBERS=6281234567890
 ```
 
 ### 2. Autentikasi Google Drive (OAuth 2.0 User / Service Account)
