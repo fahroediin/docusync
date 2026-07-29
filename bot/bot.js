@@ -468,13 +468,21 @@ client.on('message_create', async (message) => {
 
         console.log(`[${CLIENT_ID}] Pesan relevan dari ${message.from}: "${body.substring(0, 40)}" (hasMedia: ${message.hasMedia})`);
 
-        // Group filtering check
+        // ── Access Control: Hanya grup terdaftar yang diproses ──
         if (isGroup && !ALLOW_ALL_GROUPS) {
-            const isCommand = lowerBody.startsWith('!');
-            if (!isCommand && ALLOWED_GROUP_IDS.length > 0 && !ALLOWED_GROUP_IDS.includes(message.from)) {
-                return;
+            if (ALLOWED_GROUP_IDS.length > 0 && !ALLOWED_GROUP_IDS.includes(message.from)) {
+                return; // Grup tidak terdaftar
             }
-            if (!isCommand && ALLOWED_GROUP_IDS.length === 0) {
+            if (ALLOWED_GROUP_IDS.length === 0) {
+                return; // Tidak ada grup yang diizinkan
+            }
+        }
+
+        // ── Access Control: DM/Private — hanya Admin yang diizinkan ──
+        if (!isGroup) {
+            const isAdmin = await isSenderAdmin(message);
+            if (!isAdmin) {
+                console.log(`[${CLIENT_ID}] Pesan DM dari non-admin ${message.from} diabaikan.`);
                 return;
             }
         }
