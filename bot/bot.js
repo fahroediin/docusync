@@ -62,6 +62,17 @@ if (!fs.existsSync(TEMP_DIR)) {
     fs.mkdirSync(TEMP_DIR, { recursive: true });
 }
 
+// Deduplication cache for processed WhatsApp message IDs (Multi-Device fix)
+const processedMsgIds = new Set();
+function isDuplicateMessage(message) {
+    const msgId = message.id?._serialized || message.id?.id;
+    if (!msgId) return false;
+    if (processedMsgIds.has(msgId)) return true;
+    processedMsgIds.add(msgId);
+    setTimeout(() => processedMsgIds.delete(msgId), 2 * 60 * 1000);
+    return false;
+}
+
 // ─────────────────────────────────────────────────────────────
 // Client Configuration (Resource-Optimized for VPS)
 // ─────────────────────────────────────────────────────────────
@@ -450,6 +461,11 @@ function getPendingDelete(chatId) {
 
 client.on('message_create', async (message) => {
     try {
+        // Prevent WhatsApp Web Multi-Device duplicate event handling
+        if (isDuplicateMessage(message)) {
+            return;
+        }
+
         const body = (message.body || '').trim();
         const lowerBody = body.toLowerCase();
         const isGroup = message.from.endsWith('@g.us');
