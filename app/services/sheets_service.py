@@ -18,7 +18,7 @@ import re
 def _parse_spreadsheet_ref(ref: str) -> tuple[str, Optional[str]]:
     """
     Extract spreadsheet ID and optional gid from plain ID or Google Sheets URL.
-    Example URL: https://docs.google.com/spreadsheets/d/1jLfSYSk3ifYhwWDn1UhZ319RHVgpxsSzLmBzFIuW5pk/edit?gid=592056559#gid=592056559
+    Example URL: https://docs.google.com/spreadsheets/d/your_spreadsheet_id/edit?gid=your_tab_gid
     """
     if not ref:
         return "", None
