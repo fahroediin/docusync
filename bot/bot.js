@@ -601,11 +601,11 @@ client.on('message_create', async (message) => {
                 `   !hapus <nama_dokumen_atau_id>\n\n` +
                 `5. Sinkronisasi GDrive (Admin):\n` +
                 `   !sync\n\n` +
-                `*Katalog PDF & Profiling*\n` +
+                `*Katalog PDF & Informasi*\n` +
                 `6. Daftar PDF di GDrive:\n` +
                 `   !daftar-pdf (atau !pdf)\n\n` +
-                `7. Lihat Profil Perusahaan:\n` +
-                `   !profiling <nama_perusahaan> atau !profiling <nomor>\n\n` +
+                `7. Lihat Informasi Perusahaan:\n` +
+                `   !info <nama_perusahaan> atau !info <nomor>\n\n` +
                 `8. Sinkronisasi Spreadsheet (Admin):\n` +
                 `   !sync-sheet\n\n` +
                 `*Lainnya*\n` +
@@ -867,7 +867,7 @@ client.on('message_create', async (message) => {
                     const dateInfo = f.doc_date ? ` (${f.doc_date})` : '';
                     replyText += `${idx + 1}. *${company}*${dateInfo} • ${f.size_mb} MB\n`;
                 });
-                replyText += `\n_Ketik !profiling <nomor/nama> untuk melihat detail profil perusahaan._`;
+                replyText += `\n_Ketik !info <nomor/nama> untuk melihat informasi perusahaan._`;
                 await sendReply(message, replyText);
                 console.log(`[${CLIENT_ID}] Sukses mengirim balasan !daftar-pdf ke ${message.from}`);
             } catch (err) {
@@ -877,11 +877,11 @@ client.on('message_create', async (message) => {
             return;
         }
 
-        // ── Command: !profiling / !profil ───────────────────────────
-        if (lowerBody.startsWith('!profiling') || lowerBody.startsWith('!profil')) {
+        // ── Command: !info / !profiling / !detail ───────────────────
+        if (lowerBody.startsWith('!info') || lowerBody.startsWith('!profiling') || lowerBody.startsWith('!profil') || lowerBody.startsWith('!detail')) {
             const query = body.split(/\s+/).slice(1).join(' ').trim();
             if (!query) {
-                await sendReply(message, `*Cara Cek Profil Perusahaan:*\n• Ketik: \`!profiling <nama_perusahaan>\`\n• Atau: \`!profiling <nomor>\` (setelah !daftar-pdf)\n\n_Contoh: !profiling PT Perkasa Pilar Utama_`);
+                await sendReply(message, `*Cara Cek Informasi Perusahaan:*\n- Ketik: \`!info <nama_perusahaan>\`\n- Atau: \`!info <nomor>\` (setelah !daftar-pdf)\n\n_Contoh: !info Bizcom Capital Global_`);
                 return;
             }
 
@@ -895,11 +895,11 @@ client.on('message_create', async (message) => {
                 const selected = pdfList[numIdx - 1];
                 searchKeyword = selected.company_name || selected.filename;
             } else if (!isNaN(numIdx) && !pdfList) {
-                await sendReply(message, `Ketik !daftar-pdf terlebih dahulu untuk melihat daftar file, lalu gunakan !profiling <nomor>.`);
+                await sendReply(message, `Ketik !daftar-pdf terlebih dahulu untuk melihat daftar file, lalu gunakan !info <nomor>.`);
                 return;
             }
 
-            console.log(`[${CLIENT_ID}] Mencari profil untuk "${searchKeyword}" dari ${message.from}...`);
+            console.log(`[${CLIENT_ID}] Mencari info untuk "${searchKeyword}" dari ${message.from}...`);
             try {
                 const res = await axios.get(DOCUSYNC_PROFILING_SEARCH_URL, {
                     params: { q: searchKeyword },
@@ -911,15 +911,15 @@ client.on('message_create', async (message) => {
 
                 if (profiles.length === 0) {
                     await sendReply(message,
-                        `*Profil Tidak Ditemukan*\n\n` +
-                        `Tidak ditemukan data profil untuk *"${searchKeyword}"* di database.\n\n` +
+                        `*Informasi Tidak Ditemukan*\n\n` +
+                        `Tidak ditemukan data untuk *"${searchKeyword}"* di database.\n\n` +
                         `_Pastikan data sudah ada di Google Spreadsheet, lalu jalankan !sync-sheet untuk memperbarui._`
                     );
                     return;
                 }
 
-                // Format the profile output
-                let replyText = `*Hasil Profiling Perusahaan* (${profiles.length} ditemukan)\n\n`;
+                // Format the info output
+                let replyText = `*Informasi Perusahaan* (${profiles.length} ditemukan)\n\n`;
                 profiles.forEach((p, idx) => {
                     replyText += `*Company:* ${p.company_name}\n`;
                     if (p.category) replyText += `*Category:* ${p.category}\n`;
@@ -932,10 +932,10 @@ client.on('message_create', async (message) => {
                 });
 
                 await sendReply(message, replyText);
-                console.log(`[${CLIENT_ID}] Sukses mengirim profil "${searchKeyword}" ke ${message.from}`);
+                console.log(`[${CLIENT_ID}] Sukses mengirim info "${searchKeyword}" ke ${message.from}`);
             } catch (err) {
-                console.error(`[${CLIENT_ID}] Error !profiling:`, err.response?.data?.detail || err.message);
-                await sendReply(message, `Gagal mencari profil: ${err.response?.data?.detail || err.message}`);
+                console.error(`[${CLIENT_ID}] Error !info:`, err.response?.data?.detail || err.message);
+                await sendReply(message, `Gagal mencari info: ${err.response?.data?.detail || err.message}`);
             }
             return;
         }

@@ -26,10 +26,10 @@ DocuSync adalah sistem manajemen dokumen otomatis yang terintegrasi dengan Googl
 - `!hapus <nama/ID>` : (Admin Only) Hapus dokumen dari SQLite, Elasticsearch & Google Drive.
 - `!sync` : (Admin Only) Sinkronisasi dan bersihkan dokumen yang telah dihapus di Google Drive.
 
-### Katalog PDF & Profiling
+### Katalog PDF & Informasi
 - `!daftar-pdf` / `!pdf` : Tampilkan daftar seluruh file PDF di folder katalog Google Drive.
-- `!profiling <nama perusahaan>` : Cari dan tampilkan profil perusahaan dari database.
-- `!profiling <nomor>` : Tampilkan profil perusahaan berdasarkan nomor urut dari hasil `!daftar-pdf`.
+- `!info <nama perusahaan>` : Cari dan tampilkan informasi perusahaan dari database.
+- `!info <nomor>` : Tampilkan informasi perusahaan berdasarkan nomor urut dari hasil `!daftar-pdf`.
 - `!sync-sheet` : (Admin Only) Sinkronisasi data profil dari Google Spreadsheet ke database.
 
 ### Sistem & Informasi
