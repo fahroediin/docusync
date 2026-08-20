@@ -159,16 +159,32 @@ function formatUploaderName(str) {
     return clean || str;
 }
 
-async function sendReply(message, text) {
+async function sendReply(message, text, options = {}) {
+    let sentMsg = null;
     try {
-        await message.reply(text);
-        return;
-    } catch (_) {}
-    try {
-        await client.sendMessage(message.from, text);
-    } catch (err) {
-        console.error(`[${CLIENT_ID}] Gagal mengirim balasan ke ${message.from}:`, err.message);
+        sentMsg = await message.reply(text);
+    } catch (_) {
+        try {
+            sentMsg = await client.sendMessage(message.from, text);
+        } catch (err) {
+            console.error(`[${CLIENT_ID}] Gagal mengirim balasan ke ${message.from}:`, err.message);
+        }
     }
+
+    // Auto-delete message if autoDeleteSec is set
+    const autoDeleteSec = options.autoDeleteSec !== undefined
+        ? options.autoDeleteSec
+        : parseInt(process.env.AUTO_DELETE_BOT_MESSAGES_SEC || '0', 10);
+
+    if (sentMsg && autoDeleteSec > 0) {
+        setTimeout(async () => {
+            try {
+                await sentMsg.delete(true);
+            } catch (_) {}
+        }, autoDeleteSec * 1000);
+    }
+
+    return sentMsg;
 }
 
 function getAdminPhoneNumbers() {
@@ -538,9 +554,9 @@ client.on('message_create', async (message) => {
             const health = await checkDocuSyncServer();
             const isOnline = !!health;
             let statusText = `*Status DocuSync Bot*\n\n` +
-                `• Backend Server: ${isOnline ? 'Online' : 'Offline'}\n` +
-                `• Google Drive API: ${health?.gdrive_configured ? 'Terhubung' : 'Belum Aktif'}\n` +
-                `• Elasticsearch: ${health?.elasticsearch_online ? 'Terhubung' : 'Offline (SQLite Fallback)'}\n\n` +
+                `- Backend Server: ${isOnline ? 'Online' : 'Offline'}\n` +
+                `- Google Drive API: ${health?.gdrive_configured ? 'Terhubung' : 'Belum Aktif'}\n` +
+                `- Elasticsearch: ${health?.elasticsearch_online ? 'Terhubung' : 'Offline (SQLite Fallback)'}\n\n` +
                 `Kirim file (PDF/DOCX/XLSX) untuk menyimpan ke Google Drive.`;
             
             await sendReply(message, statusText);
@@ -550,7 +566,7 @@ client.on('message_create', async (message) => {
         // Command: !help
         if (lowerBody === '!help' || lowerBody === '!bantuan') {
             let helpText = `*Panduan DocuSync Bot*\n\n` +
-                `*── Manajemen Dokumen ──*\n` +
+                `*Manajemen Dokumen*\n` +
                 `1. Simpan Dokumen:\n` +
                 `   Kirim file (PDF, DOCX, XLSX) atau bagikan link Google Docs/Sheets di grup.\n\n` +
                 `2. Cari Dokumen:\n` +
@@ -561,14 +577,14 @@ client.on('message_create', async (message) => {
                 `   !hapus <nama_dokumen_atau_id>\n\n` +
                 `5. Sinkronisasi GDrive (Admin):\n` +
                 `   !sync\n\n` +
-                `*── Katalog PDF & Profiling ──*\n` +
+                `*Katalog PDF & Profiling*\n` +
                 `6. Daftar PDF di GDrive:\n` +
                 `   !daftar-pdf (atau !pdf)\n\n` +
                 `7. Lihat Profil Perusahaan:\n` +
                 `   !profiling <nama_perusahaan> atau !profiling <nomor>\n\n` +
                 `8. Sinkronisasi Spreadsheet (Admin):\n` +
                 `   !sync-sheet\n\n` +
-                `*── Lainnya ──*\n` +
+                `*Lainnya*\n` +
                 `9. Cek Status: !status\n` +
                 `10. Group ID: !groupid`;
             
@@ -908,16 +924,22 @@ client.on('message_create', async (message) => {
                 return;
             }
 
-            await sendReply(message, `⏳ Sedang menyinkronkan data profil dari Google Spreadsheet...\n_Mohon tunggu sebentar._`);
+            const loadingMsg = await sendReply(message, `Sedang menyinkronkan data profil dari Google Spreadsheet...\nMohon tunggu sebentar.`);
 
             try {
                 const res = await axios.post(DOCUSYNC_SYNC_SHEET_URL, {}, { timeout: 30000 });
+                if (loadingMsg) {
+                    try { await loadingMsg.delete(true); } catch (_) {}
+                }
                 const msg = res.data?.message || 'Sinkronisasi berhasil.';
-                await sendReply(message, `✅ ${msg}`);
+                await sendReply(message, msg);
                 console.log(`[${CLIENT_ID}] Sukses sync Google Sheets oleh admin ${message.from}`);
             } catch (err) {
+                if (loadingMsg) {
+                    try { await loadingMsg.delete(true); } catch (_) {}
+                }
                 console.error(`[${CLIENT_ID}] Error !sync-sheet:`, err.response?.data?.detail || err.message);
-                await sendReply(message, `❌ Gagal sinkronisasi: ${err.response?.data?.detail || err.message}`);
+                await sendReply(message, `Gagal sinkronisasi: ${err.response?.data?.detail || err.message}`);
             }
             return;
         }
