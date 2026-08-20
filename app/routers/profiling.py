@@ -95,12 +95,16 @@ async def get_all_profiles():
 
 
 @router.post("/sync", response_model=SyncSheetResponse, summary="Sinkronisasi data profil dari Google Spreadsheet")
-async def sync_google_sheets(spreadsheet_id: Optional[str] = Query(None)):
+async def sync_google_sheets(
+    spreadsheet_id: Optional[str] = Query(None, description="Google Spreadsheet ID atau full URL"),
+    gid: Optional[str] = Query(None, description="Sheet Tab GID (misal: 592056559)")
+):
     """
     Menarik data profil terbaru dari Google Spreadsheet ke database SQLite lokal.
+    Mendukung link Google Sheets lengkap beserta gid tab spesifik.
     """
     try:
-        count = await sheets_service.sync_from_spreadsheet(spreadsheet_id)
+        count = await sheets_service.sync_from_spreadsheet(spreadsheet_id, gid=gid)
         return SyncSheetResponse(
             success=True,
             message=f"Berhasil menyinkronkan {count} profil perusahaan dari Google Spreadsheet.",

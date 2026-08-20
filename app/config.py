@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     # Profiling & PDF Catalog Settings
     GDRIVE_SUMMARY_FOLDER_ID: str = ""
     PROFILING_SPREADSHEET_ID: str = ""
+    PROFILING_SPREADSHEET_GID: str = ""
 
     @property
     def allowed_extensions_list(self) -> list[str]:

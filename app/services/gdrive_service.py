@@ -284,13 +284,14 @@ class GDriveService:
                 os.remove(dest_path)
             raise RuntimeError(f"Gagal mengunduh file dari Google Drive: {str(e)}")
 
-    async def export_spreadsheet_csv(self, spreadsheet_id: str) -> str:
+    async def export_spreadsheet_csv(self, spreadsheet_id: str, gid: Optional[str] = None) -> str:
         """
-        Export a Google Spreadsheet as CSV text.
-        Works seamlessly via Drive API export.
+        Export a Google Spreadsheet tab as CSV text.
+        Supports specific sheet tab via gid (e.g. gid=592056559 for Summary_Profiling).
 
         Args:
             spreadsheet_id: The Google Spreadsheet file ID.
+            gid: Optional sheet tab ID (gid).
 
         Returns:
             CSV content as string.
@@ -304,6 +305,25 @@ class GDriveService:
                 )
 
         try:
+            # If gid is specified, export the specific tab via authorized export URL
+            if gid and self.creds:
+                try:
+                    from google.auth.transport.requests import AuthorizedSession
+                    authed_session = AuthorizedSession(self.creds)
+                    url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/export?format=csv&gid={gid}"
+                    resp = authed_session.get(url)
+                    if resp.status_code == 200:
+                        logger.info(f"Successfully exported spreadsheet tab (gid={gid}) as CSV.")
+                        return resp.content.decode('utf-8-sig', errors='replace')
+                    else:
+                        logger.warning(
+                            f"Direct gid export returned HTTP {resp.status_code}, "
+                            f"falling back to Drive API export."
+                        )
+                except Exception as e:
+                    logger.warning(f"Failed direct gid export: {str(e)}, falling back to Drive API.")
+
+            # Default: export first tab via Drive API
             content_bytes = self.service.files().export(
                 fileId=spreadsheet_id,
                 mimeType='text/csv'

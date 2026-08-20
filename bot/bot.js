@@ -881,13 +881,13 @@ client.on('message_create', async (message) => {
                 // Format the profile output
                 let replyText = `*Hasil Profiling Perusahaan* (${profiles.length} ditemukan)\n\n`;
                 profiles.forEach((p, idx) => {
-                    replyText += `🏢 *${p.company_name}*\n`;
-                    if (p.doc_date) replyText += `📅 Tanggal: ${p.doc_date}\n`;
-                    if (p.category) replyText += `🏷️ Kategori: ${p.category}\n`;
-                    if (p.pic) replyText += `👤 PIC: ${p.pic}\n`;
-                    if (p.summary) replyText += `\n📝 *Ringkasan / Profil:*\n${p.summary}\n`;
-                    if (p.extra_info) replyText += `\nℹ️ Info Tambahan: ${p.extra_info}\n`;
-                    if (p.gdrive_link) replyText += `🔗 Link: ${p.gdrive_link}\n`;
+                    replyText += `*Company:* ${p.company_name}\n`;
+                    if (p.category) replyText += `*Category:* ${p.category}\n`;
+                    if (p.doc_date) replyText += `*Date:* ${p.doc_date}\n`;
+                    if (p.pic) replyText += `*PIC:* ${p.pic}\n`;
+                    if (p.summary) replyText += `\n*Summary:*\n${p.summary}\n`;
+                    if (p.extra_info) replyText += `\n*Info:* ${p.extra_info}\n`;
+                    if (p.gdrive_link) replyText += `\n*Link:* ${p.gdrive_link}\n`;
                     if (idx < profiles.length - 1) replyText += `\n─────────────────────\n\n`;
                 });
 

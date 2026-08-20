@@ -12,6 +12,28 @@ from app.services.gdrive_service import gdrive_service
 logger = logging.getLogger(__name__)
 
 
+import re
+
+
+def _parse_spreadsheet_ref(ref: str) -> tuple[str, Optional[str]]:
+    """
+    Extract spreadsheet ID and optional gid from plain ID or Google Sheets URL.
+    Example URL: https://docs.google.com/spreadsheets/d/1jLfSYSk3ifYhwWDn1UhZ319RHVgpxsSzLmBzFIuW5pk/edit?gid=592056559#gid=592056559
+    """
+    if not ref:
+        return "", None
+
+    # Check for ID in URL format
+    match_id = re.search(r'/d/([a-zA-Z0-9_-]+)', ref)
+    sheet_id = match_id.group(1) if match_id else ref.strip()
+
+    # Check for gid in URL or fragment
+    match_gid = re.search(r'[?&#]gid=([0-9]+)', ref)
+    gid = match_gid.group(1) if match_gid else None
+
+    return sheet_id, gid
+
+
 def _normalize_header(header: str) -> str:
     """Normalize column header for flexible matching."""
     return header.strip().lower().replace("_", " ").replace("-", " ")
@@ -20,21 +42,33 @@ def _normalize_header(header: str) -> str:
 class SheetsProfilingService:
     """Service for syncing and querying company profiling data from Google Sheets."""
 
-    async def sync_from_spreadsheet(self, spreadsheet_id: Optional[str] = None) -> int:
+    async def sync_from_spreadsheet(
+        self,
+        spreadsheet_id: Optional[str] = None,
+        gid: Optional[str] = None
+    ) -> int:
         """
-        Download CSV from Google Spreadsheet and sync all rows into the company_profiles SQLite table.
+        Download CSV from Google Spreadsheet (supports specific tab via gid)
+        and sync all rows into the company_profiles SQLite table.
 
         Returns:
             Number of records synced.
         """
-        sheet_id = spreadsheet_id or settings.PROFILING_SPREADSHEET_ID
-        if not sheet_id:
+        raw_input = spreadsheet_id or settings.PROFILING_SPREADSHEET_ID
+        if not raw_input:
             raise ValueError(
                 "PROFILING_SPREADSHEET_ID belum dikonfigurasi di file .env."
             )
 
-        logger.info(f"Syncing profiling data from Google Spreadsheet ID: {sheet_id}...")
-        csv_text = await gdrive_service.export_spreadsheet_csv(sheet_id)
+        # Parse ID and GID from input or config
+        sheet_id, extracted_gid = _parse_spreadsheet_ref(raw_input)
+        target_gid = gid or extracted_gid or settings.PROFILING_SPREADSHEET_GID or None
+
+        logger.info(
+            f"Syncing profiling data from Google Spreadsheet ID: {sheet_id} "
+            f"(gid={target_gid or 'default'})..."
+        )
+        csv_text = await gdrive_service.export_spreadsheet_csv(sheet_id, gid=target_gid)
 
         # Parse CSV
         reader = csv.DictReader(io.StringIO(csv_text))
