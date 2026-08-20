@@ -159,6 +159,32 @@ function formatUploaderName(str) {
     return clean || str;
 }
 
+function getAutoDeleteSec() {
+    let rawEnv = process.env.AUTO_DELETE_BOT_MESSAGES_SEC || '';
+    if (fs.existsSync(envPath)) {
+        try {
+            const content = fs.readFileSync(envPath, 'utf8');
+            const line = content.split(/\r?\n/).find(l => l.trim().startsWith('AUTO_DELETE_BOT_MESSAGES_SEC='));
+            if (line) {
+                rawEnv = line.split('=').slice(1).join('=').trim().replace(/^["']|["']$/g, '');
+            }
+        } catch (_) {}
+    }
+    return parseInt(rawEnv || '0', 10);
+}
+
+async function deleteMessageSafe(sentMsg) {
+    if (!sentMsg) return;
+    try {
+        if (typeof sentMsg.delete === 'function') {
+            await sentMsg.delete(true);
+            console.log(`[${CLIENT_ID}] Pesan bot otomatis dibersihkan.`);
+        }
+    } catch (err) {
+        console.warn(`[${CLIENT_ID}] Gagal auto-delete pesan:`, err.message);
+    }
+}
+
 async function sendReply(message, text, options = {}) {
     let sentMsg = null;
     try {
@@ -171,16 +197,14 @@ async function sendReply(message, text, options = {}) {
         }
     }
 
-    // Auto-delete message if autoDeleteSec is set
+    // Auto-delete message if autoDeleteSec is passed or configured in .env
     const autoDeleteSec = options.autoDeleteSec !== undefined
         ? options.autoDeleteSec
-        : parseInt(process.env.AUTO_DELETE_BOT_MESSAGES_SEC || '0', 10);
+        : getAutoDeleteSec();
 
     if (sentMsg && autoDeleteSec > 0) {
-        setTimeout(async () => {
-            try {
-                await sentMsg.delete(true);
-            } catch (_) {}
+        setTimeout(() => {
+            deleteMessageSafe(sentMsg);
         }, autoDeleteSec * 1000);
     }
 
@@ -924,20 +948,12 @@ client.on('message_create', async (message) => {
                 return;
             }
 
-            const loadingMsg = await sendReply(message, `Sedang menyinkronkan data profil dari Google Spreadsheet...\nMohon tunggu sebentar.`);
-
             try {
                 const res = await axios.post(DOCUSYNC_SYNC_SHEET_URL, {}, { timeout: 30000 });
-                if (loadingMsg) {
-                    try { await loadingMsg.delete(true); } catch (_) {}
-                }
                 const msg = res.data?.message || 'Sinkronisasi berhasil.';
                 await sendReply(message, msg);
                 console.log(`[${CLIENT_ID}] Sukses sync Google Sheets oleh admin ${message.from}`);
             } catch (err) {
-                if (loadingMsg) {
-                    try { await loadingMsg.delete(true); } catch (_) {}
-                }
                 console.error(`[${CLIENT_ID}] Error !sync-sheet:`, err.response?.data?.detail || err.message);
                 await sendReply(message, `Gagal sinkronisasi: ${err.response?.data?.detail || err.message}`);
             }
