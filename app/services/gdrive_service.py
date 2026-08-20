@@ -187,7 +187,135 @@ class GDriveService:
             logger.info(f"File {file_id} does not exist on Google Drive: {str(e)}")
             return False
 
+    async def list_folder_files(
+        self, folder_id: str, mime_filter: str = "application/pdf"
+    ) -> list:
+        """
+        List all files in a Google Drive folder, optionally filtered by MIME type.
+
+        Args:
+            folder_id: The Google Drive folder ID to list files from.
+            mime_filter: MIME type to filter (default: PDF). Use None for all files.
+
+        Returns:
+            List of file metadata dicts: {id, name, mimeType, size, createdTime, webViewLink}
+        """
+        if not self.service:
+            self._init_service()
+            if not self.service:
+                raise RuntimeError(
+                    "Google Drive service belum terkonfigurasi. "
+                    "Harap sediakan credentials.json atau jalankan 'python generate_token.py'."
+                )
+
+        query = f"'{folder_id}' in parents and trashed = false"
+        if mime_filter:
+            query += f" and mimeType = '{mime_filter}'"
+
+        try:
+            all_files = []
+            page_token = None
+
+            while True:
+                response = self.service.files().list(
+                    q=query,
+                    fields="nextPageToken, files(id, name, mimeType, size, createdTime, webViewLink)",
+                    orderBy="name",
+                    pageSize=100,
+                    supportsAllDrives=True,
+                    includeItemsFromAllDrives=True,
+                    pageToken=page_token
+                ).execute()
+
+                files = response.get("files", [])
+                all_files.extend(files)
+
+                page_token = response.get("nextPageToken")
+                if not page_token:
+                    break
+
+            logger.info(f"Listed {len(all_files)} files from GDrive folder {folder_id}")
+            return all_files
+
+        except Exception as e:
+            logger.error(f"Failed to list files from GDrive folder {folder_id}: {str(e)}")
+            raise RuntimeError(f"Gagal membaca daftar file dari Google Drive: {str(e)}")
+
+    async def download_file(self, file_id: str, dest_path: str) -> str:
+        """
+        Download a file from Google Drive to a local path.
+
+        Args:
+            file_id: The Google Drive file ID to download.
+            dest_path: Local file path to save the downloaded file.
+
+        Returns:
+            The destination file path.
+        """
+        if not self.service:
+            self._init_service()
+            if not self.service:
+                raise RuntimeError(
+                    "Google Drive service belum terkonfigurasi. "
+                    "Harap sediakan credentials.json atau jalankan 'python generate_token.py'."
+                )
+
+        import io
+        from googleapiclient.http import MediaIoBaseDownload
+
+        try:
+            os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+
+            request = self.service.files().get_media(fileId=file_id)
+            with open(dest_path, "wb") as f:
+                downloader = MediaIoBaseDownload(f, request)
+                done = False
+                while not done:
+                    _, done = downloader.next_chunk()
+
+            file_size = os.path.getsize(dest_path)
+            logger.info(f"Downloaded GDrive file {file_id} to {dest_path} ({file_size} bytes)")
+            return dest_path
+
+        except Exception as e:
+            logger.error(f"Failed to download GDrive file {file_id}: {str(e)}")
+            # Cleanup partial download
+            if os.path.exists(dest_path):
+                os.remove(dest_path)
+            raise RuntimeError(f"Gagal mengunduh file dari Google Drive: {str(e)}")
+
+    async def export_spreadsheet_csv(self, spreadsheet_id: str) -> str:
+        """
+        Export a Google Spreadsheet as CSV text.
+        Works seamlessly via Drive API export.
+
+        Args:
+            spreadsheet_id: The Google Spreadsheet file ID.
+
+        Returns:
+            CSV content as string.
+        """
+        if not self.service:
+            self._init_service()
+            if not self.service:
+                raise RuntimeError(
+                    "Google Drive service belum terkonfigurasi. "
+                    "Harap sediakan credentials.json atau jalankan 'python generate_token.py'."
+                )
+
+        try:
+            content_bytes = self.service.files().export(
+                fileId=spreadsheet_id,
+                mimeType='text/csv'
+            ).execute()
+
+            if isinstance(content_bytes, bytes):
+                return content_bytes.decode('utf-8-sig', errors='replace')
+            return str(content_bytes)
+
+        except Exception as e:
+            logger.error(f"Failed to export spreadsheet {spreadsheet_id} as CSV: {str(e)}")
+            raise RuntimeError(f"Gagal membaca Google Spreadsheet dari Google Drive: {str(e)}")
+
 
 gdrive_service = GDriveService()
-
-

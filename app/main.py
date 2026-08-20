@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import init_db
-from app.routers import documents
+from app.routers import documents, profiling
 from app.services.search_service import search_service
 
 logging.basicConfig(
@@ -59,6 +59,7 @@ app.add_middleware(
 
 # Include Routers
 app.include_router(documents.router)
+app.include_router(profiling.router)
 
 
 @app.get("/", include_in_schema=False)

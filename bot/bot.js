@@ -41,6 +41,10 @@ const DOCUSYNC_SEND_MEDIA_URL = `${DOCUSYNC_BASE_URL}/api/v1/send/media`;
 const DOCUSYNC_SAVE_LINK_URL = `${DOCUSYNC_BASE_URL}/api/v1/link/save`;
 const DOCUSYNC_SEARCH_URL = `${DOCUSYNC_BASE_URL}/api/v1/search`;
 const DOCUSYNC_LIST_URL = `${DOCUSYNC_BASE_URL}/api/v1/documents`;
+const DOCUSYNC_PDF_LIST_URL = `${DOCUSYNC_BASE_URL}/api/v1/profiling/pdfs`;
+const DOCUSYNC_PROFILING_SEARCH_URL = `${DOCUSYNC_BASE_URL}/api/v1/profiling/search`;
+const DOCUSYNC_PROFILING_ALL_URL = `${DOCUSYNC_BASE_URL}/api/v1/profiling/all`;
+const DOCUSYNC_SYNC_SHEET_URL = `${DOCUSYNC_BASE_URL}/api/v1/profiling/sync`;
 
 const CLIENT_ID = 'docusync-bot';
 
@@ -445,6 +449,19 @@ client.on('disconnected', (reason) => {
 // In-memory store for pending delete selections per chat ID
 const pendingDeletes = new Map();
 
+// In-memory store for pending PDF catalog list per chat ID
+const pendingPdfList = new Map();
+
+function getPendingPdfList(chatId) {
+    const item = pendingPdfList.get(chatId);
+    if (!item) return null;
+    if (Date.now() - item.timestamp > 10 * 60 * 1000) { // 10 mins expiration
+        pendingPdfList.delete(chatId);
+        return null;
+    }
+    return item.files;
+}
+
 function getPendingDelete(chatId) {
     const item = pendingDeletes.get(chatId);
     if (!item) return null;
@@ -533,6 +550,7 @@ client.on('message_create', async (message) => {
         // Command: !help
         if (lowerBody === '!help' || lowerBody === '!bantuan') {
             let helpText = `*Panduan DocuSync Bot*\n\n` +
+                `*── Manajemen Dokumen ──*\n` +
                 `1. Simpan Dokumen:\n` +
                 `   Kirim file (PDF, DOCX, XLSX) atau bagikan link Google Docs/Sheets di grup.\n\n` +
                 `2. Cari Dokumen:\n` +
@@ -542,11 +560,17 @@ client.on('message_create', async (message) => {
                 `4. Hapus Dokumen (Admin):\n` +
                 `   !hapus <nama_dokumen_atau_id>\n\n` +
                 `5. Sinkronisasi GDrive (Admin):\n` +
-                `   !sync (bersihkan dokumen yg terhapus di GDrive)\n\n` +
-                `6. Cek Status Server:\n` +
-                `   !status\n\n` +
-                `7. Lihat Group ID:\n` +
-                `   !groupid (hanya di grup)`;
+                `   !sync\n\n` +
+                `*── Katalog PDF & Profiling ──*\n` +
+                `6. Daftar PDF di GDrive:\n` +
+                `   !daftar-pdf (atau !pdf)\n\n` +
+                `7. Lihat Profil Perusahaan:\n` +
+                `   !profiling <nama_perusahaan> atau !profiling <nomor>\n\n` +
+                `8. Sinkronisasi Spreadsheet (Admin):\n` +
+                `   !sync-sheet\n\n` +
+                `*── Lainnya ──*\n` +
+                `9. Cek Status: !status\n` +
+                `10. Group ID: !groupid`;
             
             await sendReply(message, helpText);
             return;
@@ -773,6 +797,127 @@ client.on('message_create', async (message) => {
             } catch (err) {
                 console.error(`[${CLIENT_ID}] Error !list:`, err.message);
                 await sendReply(message, `Gagal mengambil daftar: ${err.message}`);
+            }
+            return;
+        }
+
+        // ── Command: !daftar-pdf / !list-pdf / !pdf ─────────────────
+        if (lowerBody === '!daftar-pdf' || lowerBody === '!list-pdf' || lowerBody === '!pdf') {
+            console.log(`[${CLIENT_ID}] Memproses command !daftar-pdf dari ${message.from}...`);
+            try {
+                const res = await axios.get(DOCUSYNC_PDF_LIST_URL, { timeout: 15000 });
+                const data = res.data || {};
+                const files = data.files || [];
+                const total = data.total_files || 0;
+
+                if (total === 0 || files.length === 0) {
+                    await sendReply(message, `Belum ada file PDF di folder Google Drive.`);
+                    return;
+                }
+
+                // Store PDF catalog for subsequent !profiling <nomor>
+                pendingPdfList.set(message.from, {
+                    timestamp: Date.now(),
+                    files: files
+                });
+
+                let replyText = `*Daftar File PDF di Google Drive*\nTotal: ${total} file\n\n`;
+                files.forEach((f, idx) => {
+                    const company = f.company_name || f.filename;
+                    const dateInfo = f.doc_date ? ` (${f.doc_date})` : '';
+                    replyText += `${idx + 1}. *${company}*${dateInfo} • ${f.size_mb} MB\n`;
+                });
+                replyText += `\n_Ketik !profiling <nomor/nama> untuk melihat detail profil perusahaan._`;
+                await sendReply(message, replyText);
+                console.log(`[${CLIENT_ID}] Sukses mengirim balasan !daftar-pdf ke ${message.from}`);
+            } catch (err) {
+                console.error(`[${CLIENT_ID}] Error !daftar-pdf:`, err.response?.data?.detail || err.message);
+                await sendReply(message, `Gagal mengambil daftar PDF: ${err.response?.data?.detail || err.message}`);
+            }
+            return;
+        }
+
+        // ── Command: !profiling / !profil ───────────────────────────
+        if (lowerBody.startsWith('!profiling') || lowerBody.startsWith('!profil')) {
+            const query = body.split(/\s+/).slice(1).join(' ').trim();
+            if (!query) {
+                await sendReply(message, `*Cara Cek Profil Perusahaan:*\n• Ketik: \`!profiling <nama_perusahaan>\`\n• Atau: \`!profiling <nomor>\` (setelah !daftar-pdf)\n\n_Contoh: !profiling PT Perkasa Pilar Utama_`);
+                return;
+            }
+
+            let searchKeyword = query;
+
+            // Check if query is a number from !daftar-pdf list
+            const numIdx = parseInt(query, 10);
+            const pdfList = getPendingPdfList(message.from);
+
+            if (!isNaN(numIdx) && pdfList && numIdx >= 1 && numIdx <= pdfList.length) {
+                const selected = pdfList[numIdx - 1];
+                searchKeyword = selected.company_name || selected.filename;
+            } else if (!isNaN(numIdx) && !pdfList) {
+                await sendReply(message, `Ketik !daftar-pdf terlebih dahulu untuk melihat daftar file, lalu gunakan !profiling <nomor>.`);
+                return;
+            }
+
+            console.log(`[${CLIENT_ID}] Mencari profil untuk "${searchKeyword}" dari ${message.from}...`);
+            try {
+                const res = await axios.get(DOCUSYNC_PROFILING_SEARCH_URL, {
+                    params: { q: searchKeyword },
+                    timeout: 10000
+                });
+
+                const data = res.data || {};
+                const profiles = data.profiles || [];
+
+                if (profiles.length === 0) {
+                    await sendReply(message,
+                        `*Profil Tidak Ditemukan*\n\n` +
+                        `Tidak ditemukan data profil untuk *"${searchKeyword}"* di database.\n\n` +
+                        `_Pastikan data sudah ada di Google Spreadsheet, lalu jalankan !sync-sheet untuk memperbarui._`
+                    );
+                    return;
+                }
+
+                // Format the profile output
+                let replyText = `*Hasil Profiling Perusahaan* (${profiles.length} ditemukan)\n\n`;
+                profiles.forEach((p, idx) => {
+                    replyText += `🏢 *${p.company_name}*\n`;
+                    if (p.doc_date) replyText += `📅 Tanggal: ${p.doc_date}\n`;
+                    if (p.category) replyText += `🏷️ Kategori: ${p.category}\n`;
+                    if (p.pic) replyText += `👤 PIC: ${p.pic}\n`;
+                    if (p.summary) replyText += `\n📝 *Ringkasan / Profil:*\n${p.summary}\n`;
+                    if (p.extra_info) replyText += `\nℹ️ Info Tambahan: ${p.extra_info}\n`;
+                    if (p.gdrive_link) replyText += `🔗 Link: ${p.gdrive_link}\n`;
+                    if (idx < profiles.length - 1) replyText += `\n─────────────────────\n\n`;
+                });
+
+                await sendReply(message, replyText);
+                console.log(`[${CLIENT_ID}] Sukses mengirim profil "${searchKeyword}" ke ${message.from}`);
+            } catch (err) {
+                console.error(`[${CLIENT_ID}] Error !profiling:`, err.response?.data?.detail || err.message);
+                await sendReply(message, `Gagal mencari profil: ${err.response?.data?.detail || err.message}`);
+            }
+            return;
+        }
+
+        // ── Command: !sync-sheet / !sync-profiling (Admin Only) ──────
+        if (lowerBody === '!sync-sheet' || lowerBody === '!sync-profiling') {
+            const isAdmin = await isSenderAdmin(message);
+            if (!isAdmin) {
+                await sendReply(message, `Hanya admin yang dapat melakukan sinkronisasi data spreadsheet.`);
+                return;
+            }
+
+            await sendReply(message, `⏳ Sedang menyinkronkan data profil dari Google Spreadsheet...\n_Mohon tunggu sebentar._`);
+
+            try {
+                const res = await axios.post(DOCUSYNC_SYNC_SHEET_URL, {}, { timeout: 30000 });
+                const msg = res.data?.message || 'Sinkronisasi berhasil.';
+                await sendReply(message, `✅ ${msg}`);
+                console.log(`[${CLIENT_ID}] Sukses sync Google Sheets oleh admin ${message.from}`);
+            } catch (err) {
+                console.error(`[${CLIENT_ID}] Error !sync-sheet:`, err.response?.data?.detail || err.message);
+                await sendReply(message, `❌ Gagal sinkronisasi: ${err.response?.data?.detail || err.message}`);
             }
             return;
         }

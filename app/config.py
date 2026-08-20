@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     TEMP_STORAGE_DIR: str = "storage/temp"
     ALLOWED_FILE_EXTENSIONS: str = "pdf,xls,xlsx,doc,docx"
 
+    # Profiling & PDF Catalog Settings
+    GDRIVE_SUMMARY_FOLDER_ID: str = ""
+    PROFILING_SPREADSHEET_ID: str = ""
+
     @property
     def allowed_extensions_list(self) -> list[str]:
         return [ext.strip().lower().lstrip('.') for ext in self.ALLOWED_FILE_EXTENSIONS.split(',') if ext.strip()]
