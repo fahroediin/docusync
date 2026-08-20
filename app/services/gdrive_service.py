@@ -19,6 +19,7 @@ SCOPES = [
 class GDriveService:
     def __init__(self):
         self.service = None
+        self.creds = None
         self.folder_id = settings.GDRIVE_FOLDER_ID
         self.credentials_path = settings.GDRIVE_CREDENTIALS_PATH
         self.token_path = "token.json"
@@ -33,6 +34,7 @@ class GDriveService:
                 creds = Credentials.from_authorized_user_file(self.token_path, SCOPES)
                 if creds and creds.expired and creds.refresh_token:
                     creds.refresh(Request())
+                self.creds = creds
                 self.service = build('drive', 'v3', credentials=creds)
                 logger.info("Google Drive service initialized using OAuth2 User Credentials (token.json).")
                 return
@@ -48,6 +50,7 @@ class GDriveService:
             creds = service_account.Credentials.from_service_account_file(
                 self.credentials_path, scopes=SCOPES
             )
+            self.creds = creds
             self.service = build('drive', 'v3', credentials=creds)
             logger.info("Google Drive service successfully initialized using Service Account.")
         except Exception as e:
@@ -308,6 +311,8 @@ class GDriveService:
             # If gid is specified, export the specific tab via authorized export URL
             if gid and self.creds:
                 try:
+                    if hasattr(self.creds, 'expired') and self.creds.expired and getattr(self.creds, 'refresh_token', None):
+                        self.creds.refresh(Request())
                     from google.auth.transport.requests import AuthorizedSession
                     authed_session = AuthorizedSession(self.creds)
                     url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/export?format=csv&gid={gid}"
