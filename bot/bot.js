@@ -924,8 +924,13 @@ client.on('message_create', async (message) => {
                     replyText += `*Company:* ${p.company_name}\n`;
                     if (p.category) replyText += `*Category:* ${p.category}\n`;
                     if (p.doc_date) replyText += `*Date:* ${p.doc_date}\n`;
-                    if (p.pic) replyText += `*PIC:* ${p.pic}\n`;
-                    if (p.summary) replyText += `\n*Summary:*\n${p.summary}\n`;
+                    const cleanSummary = (p.summary || '')
+                        .replace(/&#10;/g, '\n')
+                        .replace(/&#13;/g, '')
+                        .replace(/<br\s*\/?>/gi, '\n')
+                        .replace(/\\n/g, '\n')
+                        .trim();
+                    if (cleanSummary) replyText += `\n*Summary:*\n${cleanSummary}\n`;
                     if (p.extra_info) replyText += `\n*Info:* ${p.extra_info}\n`;
                     if (p.gdrive_link) replyText += `\n*Link:* ${p.gdrive_link}\n`;
                     if (idx < profiles.length - 1) replyText += `\n─────────────────────\n\n`;

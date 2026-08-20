@@ -39,6 +39,22 @@ def _normalize_header(header: str) -> str:
     return header.strip().lower().replace("_", " ").replace("-", " ")
 
 
+def _clean_text(val: Optional[str]) -> Optional[str]:
+    """Clean text by unescaping HTML line breaks and normalising whitespaces."""
+    if not val:
+        return None
+    cleaned = (
+        val.replace("&#10;", "\n")
+        .replace("&#13;", "")
+        .replace("<br>", "\n")
+        .replace("<br/>", "\n")
+        .replace("<br />", "\n")
+        .replace("\\n", "\n")
+    )
+    cleaned = re.sub(r'\n{3,}', '\n\n', cleaned).strip()
+    return cleaned or None
+
+
 class SheetsProfilingService:
     """Service for syncing and querying company profiling data from Google Sheets."""
 
@@ -99,15 +115,15 @@ class SheetsProfilingService:
 
         rows_to_insert = []
         for row in reader:
-            company_name = row.get(header_map.get("company_name", ""), "").strip()
+            company_name = _clean_text(row.get(header_map.get("company_name", ""), ""))
             if not company_name:
                 continue
 
-            doc_date = row.get(header_map.get("doc_date", ""), "").strip()
-            category = row.get(header_map.get("category", ""), "").strip()
-            summary = row.get(header_map.get("summary", ""), "").strip()
-            pic = row.get(header_map.get("pic", ""), "").strip()
-            gdrive_link = row.get(header_map.get("gdrive_link", ""), "").strip()
+            doc_date = _clean_text(row.get(header_map.get("doc_date", ""), ""))
+            category = _clean_text(row.get(header_map.get("category", ""), ""))
+            summary = _clean_text(row.get(header_map.get("summary", ""), ""))
+            pic = _clean_text(row.get(header_map.get("pic", ""), ""))
+            gdrive_link = _clean_text(row.get(header_map.get("gdrive_link", ""), ""))
 
             # Any unmapped columns can be gathered into extra_info
             extra_cols = [
