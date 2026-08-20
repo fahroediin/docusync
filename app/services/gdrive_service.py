@@ -308,27 +308,43 @@ class GDriveService:
                 )
 
         try:
-            # If gid is specified, export the specific tab via authorized export URL
-            if gid and self.creds:
+            # 1. Try AuthorizedSession (for private sheets shared with the bot's account)
+            if self.creds:
                 try:
                     if hasattr(self.creds, 'expired') and self.creds.expired and getattr(self.creds, 'refresh_token', None):
                         self.creds.refresh(Request())
                     from google.auth.transport.requests import AuthorizedSession
                     authed_session = AuthorizedSession(self.creds)
-                    url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/export?format=csv&gid={gid}"
-                    resp = authed_session.get(url)
-                    if resp.status_code == 200:
-                        logger.info(f"Successfully exported spreadsheet tab (gid={gid}) as CSV.")
-                        return resp.content.decode('utf-8-sig', errors='replace')
-                    else:
-                        logger.warning(
-                            f"Direct gid export returned HTTP {resp.status_code}, "
-                            f"falling back to Drive API export."
-                        )
+                    url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/export?format=csv"
+                    if gid:
+                        url += f"&gid={gid}"
+                    resp = authed_session.get(url, allow_redirects=True)
+                    if resp.status_code == 200 and resp.content:
+                        # Check if response is not an HTML login page
+                        text = resp.content.decode('utf-8-sig', errors='replace')
+                        if not text.strip().startswith('<!DOCTYPE') and not text.strip().startswith('<html'):
+                            logger.info(f"Successfully exported spreadsheet (gid={gid or 'default'}) via AuthorizedSession.")
+                            return text
+                    logger.warning(f"AuthorizedSession export returned HTTP {resp.status_code}.")
                 except Exception as e:
-                    logger.warning(f"Failed direct gid export: {str(e)}, falling back to Drive API.")
+                    logger.warning(f"AuthorizedSession export attempt failed: {str(e)}")
 
-            # Default: export first tab via Drive API
+            # 2. Try Public HTTP request (if spreadsheet has 'Anyone with the link can view')
+            try:
+                import httpx
+                public_url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/export?format=csv"
+                if gid:
+                    public_url += f"&gid={gid}"
+                resp = httpx.get(public_url, follow_redirects=True, timeout=15.0)
+                if resp.status_code == 200 and resp.content:
+                    text = resp.content.decode('utf-8-sig', errors='replace')
+                    if not text.strip().startswith('<!DOCTYPE') and not text.strip().startswith('<html'):
+                        logger.info(f"Successfully exported spreadsheet via public link.")
+                        return text
+            except Exception as e:
+                logger.warning(f"Public export attempt failed: {str(e)}")
+
+            # 3. Fallback: Drive API v3 files().export()
             content_bytes = self.service.files().export(
                 fileId=spreadsheet_id,
                 mimeType='text/csv'
@@ -339,8 +355,15 @@ class GDriveService:
             return str(content_bytes)
 
         except Exception as e:
-            logger.error(f"Failed to export spreadsheet {spreadsheet_id} as CSV: {str(e)}")
-            raise RuntimeError(f"Gagal membaca Google Spreadsheet dari Google Drive: {str(e)}")
+            err_str = str(e)
+            logger.error(f"Failed to export spreadsheet {spreadsheet_id} as CSV: {err_str}")
+            if "404" in err_str or "File not found" in err_str:
+                raise RuntimeError(
+                    f"File Spreadsheet tidak ditemukan (404). "
+                    f"Pastikan file spreadsheet sudah di-SHARE ke email Service Account / Akun Google Bot Anda, "
+                    f"atau ubah General Access spreadsheet menjadi 'Anyone with the link can view'."
+                )
+            raise RuntimeError(f"Gagal membaca Google Spreadsheet dari Google Drive: {err_str}")
 
 
 gdrive_service = GDriveService()
