@@ -532,8 +532,9 @@ client.on('message_create', async (message) => {
             return;
         }
 
-        // Fast early exit: Ignore general chatter instantly (0.001ms) without clogging logs or CPU
-        const isCommand = lowerBody.startsWith('!');
+        // Fast early exit: Allow commands, media, links, and direct number replies (e.g. 1, 2, !1)
+        const isNumber = /^!?\d+$/.test(body.trim()) || /^info\s+\d+$/i.test(body.trim());
+        const isCommand = lowerBody.startsWith('!') || lowerBody.startsWith('info ') || isNumber;
         const isLink = body.includes('http://') || body.includes('https://');
         if (!isCommand && !message.hasMedia && !isLink) {
             return;
@@ -867,7 +868,7 @@ client.on('message_create', async (message) => {
                     const dateInfo = f.doc_date ? ` (${f.doc_date})` : '';
                     replyText += `${idx + 1}. *${company}*${dateInfo} • ${f.size_mb} MB\n`;
                 });
-                replyText += `\n_Ketik !info <nomor/nama> untuk melihat informasi perusahaan._`;
+                replyText += `\n_Ketik angka (misal ketik 1) atau !info <nama> untuk melihat informasi perusahaan._`;
                 await sendReply(message, replyText);
                 console.log(`[${CLIENT_ID}] Sukses mengirim balasan !daftar-pdf ke ${message.from}`);
             } catch (err) {
@@ -877,8 +878,65 @@ client.on('message_create', async (message) => {
             return;
         }
 
+        // ── Direct Number Selector for PDF Catalog (e.g. user just types "1", "2", "!1", "info 1") ──
+        const activePdfList = getPendingPdfList(message.from);
+        const directNumMatch = body.trim().match(/^!?(\d+)$/) || body.trim().match(/^info\s+(\d+)$/i);
+
+        if (activePdfList && directNumMatch && !lowerBody.startsWith('!hapus') && !lowerBody.startsWith('!delete')) {
+            const selectedIdx = parseInt(directNumMatch[1], 10);
+            if (selectedIdx >= 1 && selectedIdx <= activePdfList.length) {
+                const selected = activePdfList[selectedIdx - 1];
+                const searchKeyword = selected.company_name || selected.filename;
+
+                console.log(`[${CLIENT_ID}] Quick select [${selectedIdx}] untuk "${searchKeyword}" dari ${message.from}...`);
+                try {
+                    const res = await axios.get(DOCUSYNC_PROFILING_SEARCH_URL, {
+                        params: { q: searchKeyword },
+                        timeout: 10000
+                    });
+
+                    const data = res.data || {};
+                    const profiles = data.profiles || [];
+
+                    if (profiles.length === 0) {
+                        await sendReply(message,
+                            `*Informasi Tidak Ditemukan*\n\n` +
+                            `Tidak ditemukan data untuk *"${searchKeyword}"* di database.\n\n` +
+                            `_Pastikan data sudah ada di Google Spreadsheet, lalu jalankan !sync-sheet untuk memperbarui._`
+                        );
+                        return;
+                    }
+
+                    // Format the info output
+                    let replyText = `*Informasi Perusahaan* (${profiles.length} ditemukan)\n\n`;
+                    profiles.forEach((p, idx) => {
+                        replyText += `*Company:* ${p.company_name}\n`;
+                        if (p.category) replyText += `*Category:* ${p.category}\n`;
+                        if (p.doc_date) replyText += `*Date:* ${p.doc_date}\n`;
+                        const cleanSummary = (p.summary || '')
+                            .replace(/&#10;/g, '\n')
+                            .replace(/&#13;/g, '')
+                            .replace(/<br\s*\/?>/gi, '\n')
+                            .replace(/\\n/g, '\n')
+                            .trim();
+                        if (cleanSummary) replyText += `\n*Summary:*\n${cleanSummary}\n`;
+                        if (p.extra_info) replyText += `\n*Info:* ${p.extra_info}\n`;
+                        if (p.gdrive_link) replyText += `\n*Link:* ${p.gdrive_link}\n`;
+                        if (idx < profiles.length - 1) replyText += `\n─────────────────────\n\n`;
+                    });
+
+                    await sendReply(message, replyText);
+                    console.log(`[${CLIENT_ID}] Sukses mengirim info "${searchKeyword}" ke ${message.from}`);
+                } catch (err) {
+                    console.error(`[${CLIENT_ID}] Error direct number info:`, err.response?.data?.detail || err.message);
+                    await sendReply(message, `Gagal mencari info: ${err.response?.data?.detail || err.message}`);
+                }
+                return;
+            }
+        }
+
         // ── Command: !info / !profiling / !detail ───────────────────
-        if (lowerBody.startsWith('!info') || lowerBody.startsWith('!profiling') || lowerBody.startsWith('!profil') || lowerBody.startsWith('!detail')) {
+        if (lowerBody.startsWith('!info') || lowerBody.startsWith('!profiling') || lowerBody.startsWith('!profil') || lowerBody.startsWith('!detail') || lowerBody.startsWith('info ')) {
             const query = body.split(/\s+/).slice(1).join(' ').trim();
             if (!query) {
                 await sendReply(message, `*Cara Cek Informasi Perusahaan:*\n- Ketik: \`!info <nama_perusahaan>\`\n- Atau: \`!info <nomor>\` (setelah !daftar-pdf)\n\n_Contoh: !info Bizcom Capital Global_`);
