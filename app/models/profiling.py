@@ -17,6 +17,7 @@ class PDFFileItem(BaseModel):
 class PDFFileListResponse(BaseModel):
     """Response for listing all PDFs in the summary folder."""
     folder_id: str
+    folder_name: Optional[str] = "Google Drive"
     total_files: int
     files: List[PDFFileItem]
 

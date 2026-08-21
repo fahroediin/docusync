@@ -244,6 +244,25 @@ class GDriveService:
             logger.error(f"Failed to list files from GDrive folder {folder_id}: {str(e)}")
             raise RuntimeError(f"Gagal membaca daftar file dari Google Drive: {str(e)}")
 
+    async def get_folder_name(self, folder_id: str) -> str:
+        """
+        Get the display name of a Google Drive folder.
+        """
+        if not self.service:
+            self._init_service()
+            if not self.service:
+                return "Google Drive"
+        try:
+            meta = self.service.files().get(
+                fileId=folder_id,
+                fields="name",
+                supportsAllDrives=True
+            ).execute()
+            return meta.get("name", "Google Drive")
+        except Exception as e:
+            logger.warning(f"Could not get folder name for {folder_id}: {str(e)}")
+            return "Google Drive"
+
     async def download_file(self, file_id: str, dest_path: str) -> str:
         """
         Download a file from Google Drive to a local path.

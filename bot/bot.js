@@ -180,17 +180,17 @@ function getAutoDeleteSec() {
 async function deleteMessageSafe(sentMsg, chatId) {
     if (!sentMsg) return;
     const msgId = sentMsg.id?._serialized || sentMsg.id?.id || sentMsg.id;
-    console.log(`[${CLIENT_ID}] Mengeksekusi auto-delete untuk pesan ID: ${msgId}...`);
+    console.log(`[${CLIENT_ID}] [Auto-Delete] Memulai proses hapus pesan ID: ${msgId}...`);
 
     // Tier 1: Standard sentMsg.delete(true)
     try {
         if (typeof sentMsg.delete === 'function') {
             await sentMsg.delete(true);
-            console.log(`[${CLIENT_ID}] Sukses auto-delete pesan (${msgId}) via msg.delete(true).`);
+            console.log(`[${CLIENT_ID}] [Auto-Delete] Sukses hapus pesan (${msgId}) via msg.delete(true).`);
             return;
         }
     } catch (err1) {
-        console.warn(`[${CLIENT_ID}] Tier 1 delete failed (${err1.message}), mencoba Tier 2...`);
+        console.warn(`[${CLIENT_ID}] [Auto-Delete] Tier 1 msg.delete(true) info: ${err1.message}`);
     }
 
     // Tier 2: Re-fetch message via getMessageById
@@ -199,42 +199,89 @@ async function deleteMessageSafe(sentMsg, chatId) {
             const freshMsg = await client.getMessageById(msgId);
             if (freshMsg && typeof freshMsg.delete === 'function') {
                 await freshMsg.delete(true);
-                console.log(`[${CLIENT_ID}] Sukses auto-delete pesan (${msgId}) via fresh getMessageById.`);
+                console.log(`[${CLIENT_ID}] [Auto-Delete] Sukses hapus pesan (${msgId}) via fresh getMessageById.`);
                 return;
             }
         }
     } catch (err2) {
-        console.warn(`[${CLIENT_ID}] Tier 2 delete failed (${err2.message}), mencoba Tier 3...`);
+        console.warn(`[${CLIENT_ID}] [Auto-Delete] Tier 2 getMessageById info: ${err2.message}`);
     }
 
-    // Tier 3: Direct injection into WhatsApp Web internal Store via Puppeteer
+    // Tier 3: Direct browser evaluate with exhaustive Store search
     try {
         if (client.pupPage && msgId) {
-            const deleted = await client.pupPage.evaluate(async (mId, cId) => {
+            const res = await client.pupPage.evaluate(async (mId, cId) => {
                 try {
-                    const msg = window.Store?.Msg?.get(mId);
-                    const chat = window.Store?.Chat?.get(cId) || (msg ? msg.chat : null);
-                    if (msg && chat) {
-                        if (window.Store?.SendDelete) {
-                            await window.Store.SendDelete.sendDeleteMsgs(chat, [msg], true);
-                            return true;
-                        }
-                        if (window.WWebJS && window.WWebJS.deleteMessage) {
-                            await window.WWebJS.deleteMessage(chat, msg, true);
-                            return true;
+                    let msg = window.Store?.Msg?.get(mId);
+                    let chat = window.Store?.Chat?.get(cId);
+
+                    if (!chat && msg) chat = msg.chat;
+
+                    if (!msg && chat && chat.msgs) {
+                        msg = chat.msgs.get(mId) || (chat.msgs.models && chat.msgs.models.find(m => m.id?._serialized === mId || m.id?.id === mId));
+                    }
+
+                    if (!msg && window.Store?.Chat?.models) {
+                        for (const c of window.Store.Chat.models) {
+                            if (c.msgs) {
+                                const found = c.msgs.get(mId) || (c.msgs.models && c.msgs.models.find(m => m.id?._serialized === mId || m.id?.id === mId));
+                                if (found) {
+                                    msg = found;
+                                    chat = c;
+                                    break;
+                                }
+                            }
                         }
                     }
-                } catch (_) {}
-                return false;
+
+                    if (!msg) {
+                        return { success: false, reason: 'Pesan tidak ditemukan di Store browser' };
+                    }
+
+                    if (window.Store?.SendDelete?.sendDeleteMsgs && chat) {
+                        await window.Store.SendDelete.sendDeleteMsgs(chat, [msg], true);
+                        return { success: true, method: 'Store.SendDelete' };
+                    }
+
+                    if (chat && typeof chat.deleteMsgs === 'function') {
+                        await chat.deleteMsgs([msg], true);
+                        return { success: true, method: 'chat.deleteMsgs' };
+                    }
+
+                    if (window.WWebJS?.deleteMessage && chat) {
+                        await window.WWebJS.deleteMessage(chat, msg, true);
+                        return { success: true, method: 'WWebJS.deleteMessage' };
+                    }
+
+                    if (window.Store) {
+                        for (const key of Object.keys(window.Store)) {
+                            const mod = window.Store[key];
+                            if (mod && typeof mod.sendDeleteMsgs === 'function' && chat) {
+                                await mod.sendDeleteMsgs(chat, [msg], true);
+                                return { success: true, method: `Store.${key}.sendDeleteMsgs` };
+                            }
+                            if (mod && typeof mod.deleteMsgs === 'function' && chat) {
+                                await mod.deleteMsgs(chat, [msg], true);
+                                return { success: true, method: `Store.${key}.deleteMsgs` };
+                            }
+                        }
+                    }
+
+                    return { success: false, reason: 'Tidak ada modul delete di Store' };
+                } catch (err) {
+                    return { success: false, reason: err.message };
+                }
             }, msgId, chatId || sentMsg.from);
 
-            if (deleted) {
-                console.log(`[${CLIENT_ID}] Sukses auto-delete pesan (${msgId}) via Puppeteer Store.`);
+            if (res && res.success) {
+                console.log(`[${CLIENT_ID}] [Auto-Delete] Sukses hapus pesan (${msgId}) via Puppeteer (${res.method}).`);
                 return;
+            } else {
+                console.warn(`[${CLIENT_ID}] [Auto-Delete] Puppeteer delete failed:`, res?.reason);
             }
         }
     } catch (err3) {
-        console.warn(`[${CLIENT_ID}] Tier 3 delete failed:`, err3.message);
+        console.warn(`[${CLIENT_ID}] [Auto-Delete] Tier 3 evaluation error:`, err3.message);
     }
 }
 
@@ -520,6 +567,7 @@ client.on('ready', async () => {
     console.log(`[${CLIENT_ID}] BOT WHATSAPP DOCUSYNC SIAP BEROPERASI!`);
     await checkDocuSyncServer();
     console.log(`[${CLIENT_ID}] Bot hanya memproses pesan baru mulai dari sekarang.`);
+    console.log(`[${CLIENT_ID}] Konfigurasi Auto-Delete: ${getAutoDeleteSec()} detik.`);
     if (ALLOW_ALL_GROUPS) {
         console.log(`[${CLIENT_ID}] Mode: SEMUA GRUP diproses (ALLOW_ALL_GROUPS=true)`);
     } else if (ALLOWED_GROUP_IDS.length > 0) {
@@ -917,7 +965,8 @@ client.on('message_create', async (message) => {
                     files: files
                 });
 
-                let replyText = `*Daftar File PDF di Google Drive*\nTotal: ${total} file\n\n`;
+                const folderName = data.folder_name || 'Google Drive';
+                let replyText = `*Daftar File PDF di ${folderName}*\nTotal: ${total} file\n\n`;
                 files.forEach((f, idx) => {
                     const company = f.company_name || f.filename;
                     const dateInfo = f.doc_date ? ` (${f.doc_date})` : '';

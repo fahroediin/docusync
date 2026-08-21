@@ -47,6 +47,7 @@ async def list_pdf_files():
 
     try:
         files = await gdrive_service.list_folder_files(folder_id, mime_filter="application/pdf")
+        folder_name = await gdrive_service.get_folder_name(folder_id)
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -69,6 +70,7 @@ async def list_pdf_files():
 
     return PDFFileListResponse(
         folder_id=folder_id,
+        folder_name=folder_name,
         total_files=len(items),
         files=items,
     )
