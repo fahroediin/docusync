@@ -160,7 +160,7 @@ function formatUploaderName(str) {
 }
 
 function getAutoDeleteSec() {
-    let rawEnv = process.env.AUTO_DELETE_BOT_MESSAGES_SEC || '';
+    let rawEnv = process.env.AUTO_DELETE_BOT_MESSAGES_SEC;
     if (fs.existsSync(envPath)) {
         try {
             const content = fs.readFileSync(envPath, 'utf8');
@@ -170,7 +170,11 @@ function getAutoDeleteSec() {
             }
         } catch (_) {}
     }
-    return parseInt(rawEnv || '0', 10);
+    if (rawEnv === undefined || rawEnv === null || rawEnv === '') {
+        return 60; // Default: 60 detik jika tidak diatur di .env
+    }
+    const val = parseInt(rawEnv, 10);
+    return isNaN(val) ? 60 : val;
 }
 
 async function deleteMessageSafe(sentMsg) {
@@ -178,10 +182,16 @@ async function deleteMessageSafe(sentMsg) {
     try {
         if (typeof sentMsg.delete === 'function') {
             await sentMsg.delete(true);
-            console.log(`[${CLIENT_ID}] Pesan bot otomatis dibersihkan.`);
+            console.log(`[${CLIENT_ID}] Pesan bot otomatis dihapus (${sentMsg.id?.id || 'id'}).`);
+            return;
         }
     } catch (err) {
-        console.warn(`[${CLIENT_ID}] Gagal auto-delete pesan:`, err.message);
+        console.warn(`[${CLIENT_ID}] Gagal auto-delete pesan for everyone:`, err.message);
+        try {
+            if (typeof sentMsg.delete === 'function') {
+                await sentMsg.delete(false);
+            }
+        } catch (_) {}
     }
 }
 
@@ -203,6 +213,7 @@ async function sendReply(message, text, options = {}) {
         : getAutoDeleteSec();
 
     if (sentMsg && autoDeleteSec > 0) {
+        console.log(`[${CLIENT_ID}] Pesan bot dijadwalkan hapus otomatis dalam ${autoDeleteSec} detik.`);
         setTimeout(() => {
             deleteMessageSafe(sentMsg);
         }, autoDeleteSec * 1000);
