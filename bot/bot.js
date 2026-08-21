@@ -177,33 +177,77 @@ function getAutoDeleteSec() {
     return isNaN(val) ? 60 : val;
 }
 
-async function deleteMessageSafe(sentMsg) {
+async function deleteMessageSafe(sentMsg, chatId) {
     if (!sentMsg) return;
+    const msgId = sentMsg.id?._serialized || sentMsg.id?.id || sentMsg.id;
+    console.log(`[${CLIENT_ID}] Mengeksekusi auto-delete untuk pesan ID: ${msgId}...`);
+
+    // Tier 1: Standard sentMsg.delete(true)
     try {
         if (typeof sentMsg.delete === 'function') {
             await sentMsg.delete(true);
-            console.log(`[${CLIENT_ID}] Pesan bot otomatis dihapus (${sentMsg.id?.id || 'id'}).`);
+            console.log(`[${CLIENT_ID}] Sukses auto-delete pesan (${msgId}) via msg.delete(true).`);
             return;
         }
-    } catch (err) {
-        console.warn(`[${CLIENT_ID}] Gagal auto-delete pesan for everyone:`, err.message);
-        try {
-            if (typeof sentMsg.delete === 'function') {
-                await sentMsg.delete(false);
+    } catch (err1) {
+        console.warn(`[${CLIENT_ID}] Tier 1 delete failed (${err1.message}), mencoba Tier 2...`);
+    }
+
+    // Tier 2: Re-fetch message via getMessageById
+    try {
+        if (client.getMessageById && msgId) {
+            const freshMsg = await client.getMessageById(msgId);
+            if (freshMsg && typeof freshMsg.delete === 'function') {
+                await freshMsg.delete(true);
+                console.log(`[${CLIENT_ID}] Sukses auto-delete pesan (${msgId}) via fresh getMessageById.`);
+                return;
             }
-        } catch (_) {}
+        }
+    } catch (err2) {
+        console.warn(`[${CLIENT_ID}] Tier 2 delete failed (${err2.message}), mencoba Tier 3...`);
+    }
+
+    // Tier 3: Direct injection into WhatsApp Web internal Store via Puppeteer
+    try {
+        if (client.pupPage && msgId) {
+            const deleted = await client.pupPage.evaluate(async (mId, cId) => {
+                try {
+                    const msg = window.Store?.Msg?.get(mId);
+                    const chat = window.Store?.Chat?.get(cId) || (msg ? msg.chat : null);
+                    if (msg && chat) {
+                        if (window.Store?.SendDelete) {
+                            await window.Store.SendDelete.sendDeleteMsgs(chat, [msg], true);
+                            return true;
+                        }
+                        if (window.WWebJS && window.WWebJS.deleteMessage) {
+                            await window.WWebJS.deleteMessage(chat, msg, true);
+                            return true;
+                        }
+                    }
+                } catch (_) {}
+                return false;
+            }, msgId, chatId || sentMsg.from);
+
+            if (deleted) {
+                console.log(`[${CLIENT_ID}] Sukses auto-delete pesan (${msgId}) via Puppeteer Store.`);
+                return;
+            }
+        }
+    } catch (err3) {
+        console.warn(`[${CLIENT_ID}] Tier 3 delete failed:`, err3.message);
     }
 }
 
 async function sendReply(message, text, options = {}) {
     let sentMsg = null;
+    const targetChat = message.from;
     try {
         sentMsg = await message.reply(text);
     } catch (_) {
         try {
-            sentMsg = await client.sendMessage(message.from, text);
+            sentMsg = await client.sendMessage(targetChat, text);
         } catch (err) {
-            console.error(`[${CLIENT_ID}] Gagal mengirim balasan ke ${message.from}:`, err.message);
+            console.error(`[${CLIENT_ID}] Gagal mengirim balasan ke ${targetChat}:`, err.message);
         }
     }
 
@@ -213,9 +257,9 @@ async function sendReply(message, text, options = {}) {
         : getAutoDeleteSec();
 
     if (sentMsg && autoDeleteSec > 0) {
-        console.log(`[${CLIENT_ID}] Pesan bot dijadwalkan hapus otomatis dalam ${autoDeleteSec} detik.`);
+        console.log(`[${CLIENT_ID}] Pesan bot dijadwalkan hapus otomatis dalam ${autoDeleteSec} detik (Chat: ${targetChat}).`);
         setTimeout(() => {
-            deleteMessageSafe(sentMsg);
+            deleteMessageSafe(sentMsg, targetChat);
         }, autoDeleteSec * 1000);
     }
 
