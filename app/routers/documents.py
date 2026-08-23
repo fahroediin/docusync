@@ -42,7 +42,9 @@ async def health_check():
     es_status = False
     try:
         es_client = await search_service.get_client()
-        es_status = es_client is not None and await es_client.ping()
+        if es_client is not None:
+            es_info = await es_client.info()
+            es_status = bool(es_info and es_info.get("version"))
     except Exception:
         es_status = False
 

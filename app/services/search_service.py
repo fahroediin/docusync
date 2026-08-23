@@ -39,13 +39,14 @@ class SearchService:
                     client_kwargs["api_key"] = settings.ELASTICSEARCH_API_KEY.strip()
 
                 self.es_client = AsyncElasticsearch(**client_kwargs)
-                # Quick 3.0s ping test
-                if await asyncio.wait_for(self.es_client.ping(), timeout=3.0):
-                    logger.info(f"Elasticsearch connected at: {settings.ELASTICSEARCH_URL}")
+                # Use info() (GET /) instead of ping() (HEAD /) — ES 8.15 returns 400 on HEAD
+                es_info = await asyncio.wait_for(self.es_client.info(), timeout=5.0)
+                if es_info and es_info.get("version"):
+                    logger.info(f"Elasticsearch connected at: {settings.ELASTICSEARCH_URL} (v{es_info['version']['number']})")
                     self._es_available = True
                     self._last_failure_time = 0
                 else:
-                    logger.warning(f"Elasticsearch ping failed at: {settings.ELASTICSEARCH_URL}")
+                    logger.warning(f"Elasticsearch info check failed at: {settings.ELASTICSEARCH_URL}")
                     await self.es_client.close()
                     self.es_client = None
                     self._es_available = False
