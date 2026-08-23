@@ -188,5 +188,68 @@ class SearchService:
                 pass
         self.es_client = None
 
+    async def reindex_from_sqlite(self):
+        """Re-index all documents from SQLite into Elasticsearch."""
+        client = await self.get_client()
+        if not client:
+            logger.warning("Cannot reindex: Elasticsearch not available.")
+            return 0
+
+        await self.ensure_index()
+
+        import aiosqlite
+        from app.config import settings as app_settings
+
+        db_path = app_settings.SQLITE_DB_PATH
+        indexed_count = 0
+
+        try:
+            async with aiosqlite.connect(db_path) as db:
+                db.row_factory = aiosqlite.Row
+                async with db.execute("SELECT COUNT(*) as count FROM documents") as cursor:
+                    row = await cursor.fetchone()
+                    total = row['count'] if row else 0
+
+                if total == 0:
+                    logger.info("No documents in SQLite to reindex.")
+                    return 0
+
+                logger.info(f"Starting reindex of {total} documents from SQLite to Elasticsearch...")
+
+                async with db.execute("SELECT * FROM documents") as cursor:
+                    async for row in cursor:
+                        doc = dict(row)
+                        doc_data = {
+                            "id": doc["id"],
+                            "title": doc.get("title", ""),
+                            "filename": doc.get("filename", ""),
+                            "gdrive_link": doc.get("gdrive_link", ""),
+                            "file_type": doc.get("file_type", ""),
+                            "file_size": doc.get("file_size", 0),
+                            "uploader": doc.get("uploader", ""),
+                            "chat_source": doc.get("chat_source", ""),
+                            "tags": doc.get("tags", ""),
+                            "description": doc.get("description", ""),
+                            "created_at": str(doc.get("created_at", "")),
+                        }
+                        try:
+                            await client.index(
+                                index=self.index_name,
+                                id=doc_data["id"],
+                                document=doc_data,
+                            )
+                            indexed_count += 1
+                        except Exception as e:
+                            logger.error(f"Failed to reindex doc {doc_data['id']}: {e}")
+
+                # Refresh index after bulk insert
+                await client.indices.refresh(index=self.index_name)
+                logger.info(f"Reindex complete: {indexed_count}/{total} documents indexed into Elasticsearch.")
+
+        except Exception as e:
+            logger.error(f"Reindex error: {e}")
+
+        return indexed_count
+
 
 search_service = SearchService()
