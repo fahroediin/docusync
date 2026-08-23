@@ -28,19 +28,19 @@ class SearchService:
                 import asyncio
                 from elasticsearch import AsyncElasticsearch
 
-                headers = {}
-                if settings.ELASTICSEARCH_API_KEY:
-                    headers['Authorization'] = f"ApiKey {settings.ELASTICSEARCH_API_KEY}"
+                client_kwargs = {
+                    "hosts": [settings.ELASTICSEARCH_URL],
+                    "request_timeout": 5.0,
+                    "retry_on_timeout": True,
+                    "max_retries": 2,
+                }
 
-                self.es_client = AsyncElasticsearch(
-                    settings.ELASTICSEARCH_URL,
-                    headers=headers,
-                    request_timeout=3.0,
-                    retry_on_timeout=True,
-                    max_retries=1,
-                )
-                # Quick 2.0s ping test
-                if await asyncio.wait_for(self.es_client.ping(), timeout=2.0):
+                if settings.ELASTICSEARCH_API_KEY and settings.ELASTICSEARCH_API_KEY.strip():
+                    client_kwargs["api_key"] = settings.ELASTICSEARCH_API_KEY.strip()
+
+                self.es_client = AsyncElasticsearch(**client_kwargs)
+                # Quick 3.0s ping test
+                if await asyncio.wait_for(self.es_client.ping(), timeout=3.0):
                     logger.info(f"Elasticsearch connected at: {settings.ELASTICSEARCH_URL}")
                     self._es_available = True
                     self._last_failure_time = 0
