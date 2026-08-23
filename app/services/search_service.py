@@ -72,21 +72,41 @@ class SearchService:
             exists = await client.indices.exists(index=self.index_name)
             if not exists:
                 mapping = {
+                    "settings": {
+                        "analysis": {
+                            "analyzer": {
+                                "filename_analyzer": {
+                                    "type": "custom",
+                                    "tokenizer": "standard",
+                                    "filter": ["lowercase", "asciifolding"]
+                                }
+                            }
+                        }
+                    },
                     "mappings": {
                         "properties": {
                             "id": {"type": "keyword"},
                             "title": {
                                 "type": "text",
-                                "analyzer": "standard",
+                                "analyzer": "filename_analyzer",
                                 "fields": {
                                     "keyword": {"type": "keyword", "ignore_above": 256}
                                 }
                             },
-                            "filename": {"type": "text"},
+                            "filename": {
+                                "type": "text",
+                                "analyzer": "filename_analyzer"
+                            },
                             "gdrive_link": {"type": "keyword"},
                             "file_type": {"type": "keyword"},
                             "file_size": {"type": "long"},
-                            "uploader": {"type": "keyword"},
+                            "uploader": {
+                                "type": "text",
+                                "analyzer": "filename_analyzer",
+                                "fields": {
+                                    "keyword": {"type": "keyword", "ignore_above": 256}
+                                }
+                            },
                             "chat_source": {"type": "keyword"},
                             "tags": {"type": "text", "fields": {"keyword": {"type": "keyword"}}},
                             "description": {"type": "text"},
@@ -99,6 +119,24 @@ class SearchService:
         except Exception as e:
             logger.error(f"Error ensuring Elasticsearch index: {str(e)}")
             self._mark_unavailable()
+
+    async def rebuild_index(self):
+        """Delete and recreate the index, then reindex all documents from SQLite."""
+        client = await self.get_client()
+        if not client:
+            return 0
+
+        try:
+            exists = await client.indices.exists(index=self.index_name)
+            if exists:
+                await client.indices.delete(index=self.index_name)
+                logger.info(f"Deleted old index '{self.index_name}'.")
+            # Reset client reference so ensure_index creates fresh
+            await self.ensure_index()
+            return await self.reindex_from_sqlite()
+        except Exception as e:
+            logger.error(f"Error rebuilding index: {e}")
+            return 0
 
     async def index_document(self, doc_data: Dict[str, Any]) -> bool:
         client = await self.get_client()
@@ -124,20 +162,62 @@ class SearchService:
             return None
 
         from_val = (page - 1) * size
+        search_fields = ["title^3", "filename^2", "tags^2", "description", "uploader"]
+
+        # Build wildcard value for partial matching
+        wildcard_val = f"*{query.lower()}*"
 
         search_query = {
             "from": from_val,
             "size": size,
             "query": {
-                "multi_match": {
-                    "query": query,
-                    "fields": ["title^3", "filename^2", "tags^2", "description", "uploader"],
-                    "fuzziness": "AUTO"
+                "bool": {
+                    "should": [
+                        # 1. Fuzzy multi_match (handles typos)
+                        {
+                            "multi_match": {
+                                "query": query,
+                                "fields": search_fields,
+                                "fuzziness": "AUTO",
+                                "type": "best_fields"
+                            }
+                        },
+                        # 2. Exact phrase match (highest relevance)
+                        {
+                            "multi_match": {
+                                "query": query,
+                                "fields": search_fields,
+                                "type": "phrase"
+                            }
+                        },
+                        # 3. Wildcard on title (partial match)
+                        {
+                            "wildcard": {
+                                "title": {
+                                    "value": wildcard_val,
+                                    "boost": 2.0,
+                                    "case_insensitive": True
+                                }
+                            }
+                        },
+                        # 4. Wildcard on filename (partial match)
+                        {
+                            "wildcard": {
+                                "filename": {
+                                    "value": wildcard_val,
+                                    "boost": 1.5,
+                                    "case_insensitive": True
+                                }
+                            }
+                        }
+                    ],
+                    "minimum_should_match": 1
                 }
             },
             "highlight": {
                 "fields": {
                     "title": {},
+                    "filename": {},
                     "description": {}
                 }
             }
