@@ -377,7 +377,7 @@ async function isSenderAdmin(message) {
 
 async function checkDocuSyncServer() {
     let lastErr = '';
-    for (let attempt = 1; attempt <= 3; attempt++) {
+    for (let attempt = 1; attempt <= 6; attempt++) {
         try {
             const res = await axios.get(DOCUSYNC_HEALTH_URL, { timeout: 5000 });
             if (res.data && res.data.status === 'online') {
@@ -386,8 +386,8 @@ async function checkDocuSyncServer() {
             }
         } catch (err) {
             lastErr = err.message || String(err);
-            if (attempt < 3) {
-                await new Promise(r => setTimeout(r, 1000));
+            if (attempt < 6) {
+                await new Promise(r => setTimeout(r, 1500));
             }
         }
     }

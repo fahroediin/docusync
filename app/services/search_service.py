@@ -30,9 +30,9 @@ class SearchService:
 
                 client_kwargs = {
                     "hosts": [settings.ELASTICSEARCH_URL],
-                    "request_timeout": 5.0,
+                    "request_timeout": 15.0,
                     "retry_on_timeout": True,
-                    "max_retries": 2,
+                    "max_retries": 3,
                 }
 
                 if settings.ELASTICSEARCH_API_KEY and settings.ELASTICSEARCH_API_KEY.strip():
@@ -40,7 +40,7 @@ class SearchService:
 
                 self.es_client = AsyncElasticsearch(**client_kwargs)
                 # Use info() (GET /) instead of ping() (HEAD /) — ES 8.15 returns 400 on HEAD
-                es_info = await asyncio.wait_for(self.es_client.info(), timeout=5.0)
+                es_info = await asyncio.wait_for(self.es_client.info(), timeout=10.0)
                 if es_info and es_info.get("version"):
                     logger.info(f"Elasticsearch connected at: {settings.ELASTICSEARCH_URL} (v{es_info['version']['number']})")
                     self._es_available = True
@@ -129,7 +129,7 @@ class SearchService:
         try:
             exists = await client.indices.exists(index=self.index_name)
             if exists:
-                await client.indices.delete(index=self.index_name)
+                await client.indices.delete(index=self.index_name, ignore_unavailable=True)
                 logger.info(f"Deleted old index '{self.index_name}'.")
             # Reset client reference so ensure_index creates fresh
             await self.ensure_index()

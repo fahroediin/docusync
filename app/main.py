@@ -26,10 +26,20 @@ async def lifespan(app: FastAPI):
     try:
         es_client = await search_service.get_client()
         if es_client:
-            # Rebuild index (delete old mapping + recreate + reindex from SQLite)
-            logger.info("Rebuilding Elasticsearch index with latest mapping...")
-            indexed = await search_service.rebuild_index()
-            logger.info(f"Elasticsearch rebuild done: {indexed} documents indexed.")
+            await search_service.ensure_index()
+            # If the index is empty, auto-reindex from SQLite
+            try:
+                count_res = await es_client.count(index=search_service.index_name)
+                doc_count = count_res.get("count", 0) if isinstance(count_res, dict) else getattr(count_res, "count", 0)
+            except Exception:
+                doc_count = 0
+
+            if doc_count == 0:
+                logger.info("Elasticsearch index is empty — auto-reindexing from SQLite...")
+                indexed = await search_service.reindex_from_sqlite()
+                logger.info(f"Auto-reindex done: {indexed} documents indexed.")
+            else:
+                logger.info(f"Elasticsearch ready with {doc_count} indexed documents.")
     except Exception as e:
         logger.warning(f"Elasticsearch not available on startup (will use SQLite fallback): {type(e).__name__}")
 

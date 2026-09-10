@@ -518,3 +518,24 @@ async def sync_gdrive_documents(db: aiosqlite.Connection = Depends(get_db)):
     }
 
 
+@router.post("/reindex", summary="Reindex Dokumen dari SQLite ke Elasticsearch")
+async def reindex_elasticsearch(rebuild: bool = False):
+    """
+    Mengindeks ulang dokumen dari SQLite ke Elasticsearch.
+    - rebuild=False (default): Memasukkan dokumen SQLite yang belum terindeks atau update index.
+    - rebuild=True: Menghapus index lama dan membuat ulang struktur mapping dari awal.
+    """
+    if rebuild:
+        count = await search_service.rebuild_index()
+    else:
+        count = await search_service.reindex_from_sqlite()
+
+    return {
+        "success": True,
+        "rebuild": rebuild,
+        "indexed_documents": count,
+        "message": f"Proses reindex selesai: {count} dokumen berhasil diindeks ke Elasticsearch."
+    }
+
+
+
