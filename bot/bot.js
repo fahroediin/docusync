@@ -886,7 +886,7 @@ client.on('message_create', async (message) => {
             try {
                 const res = await axios.get(DOCUSYNC_SEARCH_URL, {
                     params: { q: query, page: 1, size: 5 },
-                    timeout: 5000
+                    timeout: 15000
                 });
 
                 const data = res.data || {};
@@ -918,7 +918,7 @@ client.on('message_create', async (message) => {
             try {
                 const res = await axios.get(DOCUSYNC_LIST_URL, {
                     params: { page: 1, size: 5 },
-                    timeout: 5000
+                    timeout: 15000
                 });
 
                 const data = res.data || {};
